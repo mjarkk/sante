@@ -2,20 +2,6 @@
 
 :root {
   color-scheme: light dark;
-
-  --bg: light-dark(#fdf7ff, #141218);
-  --surface-low: light-dark(#f7f2fa, #1b1920);
-  --surface: light-dark(#f2ecf6, #211f26);
-  --surface-high: light-dark(#ece6f0, #2b2930);
-  --surface-highest: light-dark(#e4ddeb, #36343b);
-  --on: light-dark(#1d1b20, #e6e0e9);
-  --on-var: light-dark(#49454f, #cac4d0);
-  --outline: light-dark(#79747e, #938f99);
-  --outline-var: light-dark(#cac4d0, #49454f);
-  --primary: light-dark(#65558f, #cfbcff);
-  --on-primary: light-dark(#fff, #381e72);
-  --primary-c: light-dark(#e9ddff, #4f378a);
-  --on-primary-c: light-dark(#22005d, #e9ddff);
   --shadow: light-dark(oklch(0.2 0.02 280 / 0.14), oklch(0 0 0 / 0.5));
 
   /* Status colours always ship with an icon and a label. */
@@ -35,7 +21,6 @@
   --bar-minor: #f2b300;
   --bar-partial: #f08a4b;
   --bar-major: light-dark(#dc3b3b, #ff6b63);
-  --bar-none: light-dark(#e2dce8, #3a3641);
   --fail-band: light-dark(#f6c9c9, #5e2228);
 
   --font: "Roboto Flex", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -46,6 +31,92 @@
   --shape-ease: cubic-bezier(0.2, 0, 0, 1);
   --spring: cubic-bezier(0.3, 1.6, 0.5, 1);
   --press: border-radius 320ms var(--shape-ease), padding 500ms var(--spring), transform 500ms var(--spring), background-color 200ms, color 200ms;
+}
+
+/* Swatches in the theme menu set data-palette on themselves, so palettes
+   must not be scoped to :root. Palettes after the default come from
+   material-color-utilities at the default's tones: SchemeTonalSpot for teal,
+   SchemeContent for yellow and red (TonalSpot dulls them to olive and brick),
+   SchemeMonochrome for gray. */
+:root, [data-palette="violet"] {
+  --bg: light-dark(#fdf7ff, #141218);
+  --surface-low: light-dark(#f7f2fa, #1b1920);
+  --surface: light-dark(#f2ecf6, #211f26);
+  --surface-high: light-dark(#ece6f0, #2b2930);
+  --surface-highest: light-dark(#e4ddeb, #36343b);
+  --on: light-dark(#1d1b20, #e6e0e9);
+  --on-var: light-dark(#49454f, #cac4d0);
+  --outline: light-dark(#79747e, #938f99);
+  --outline-var: light-dark(#cac4d0, #49454f);
+  --primary: light-dark(#65558f, #cfbcff);
+  --on-primary: light-dark(#fff, #381e72);
+  --primary-c: light-dark(#e9ddff, #4f378a);
+  --on-primary-c: light-dark(#22005d, #e9ddff);
+  --bar-none: light-dark(#e2dce8, #3a3641);
+}
+[data-palette="teal"] {
+  --bg: light-dark(#f4fbfa, #0e1514);
+  --surface-low: light-dark(#eff5f4, #161d1d);
+  --surface: light-dark(#e9efee, #1a2121);
+  --surface-high: light-dark(#e3e9e9, #252b2b);
+  --surface-highest: light-dark(#dde4e3, #2f3636);
+  --on: light-dark(#161d1d, #dde4e3);
+  --on-var: light-dark(#3f4948, #bec9c8);
+  --outline: light-dark(#6f7979, #889392);
+  --outline-var: light-dark(#bec9c8, #3f4948);
+  --primary: light-dark(#006a6a, #80d5d4);
+  --on-primary: light-dark(#fff, #003737);
+  --primary-c: light-dark(#9cf1f0, #004f4f);
+  --on-primary-c: light-dark(#002020, #9cf1f0);
+  --bar-none: light-dark(#d7e2e1, #313b3b);
+}
+[data-palette="yellow"] {
+  --bg: light-dark(#fff8f0, #17130a);
+  --surface-low: light-dark(#fcf3e2, #1f1b11);
+  --surface: light-dark(#f6eddc, #231f15);
+  --surface-high: light-dark(#f0e7d7, #2e2a1f);
+  --surface-highest: light-dark(#ebe1d1, #393429);
+  --on: light-dark(#1f1b11, #ebe1d1);
+  --on-var: light-dark(#4e4633, #d1c5ac);
+  --outline: light-dark(#7f7660, #9a9079);
+  --outline-var: light-dark(#d1c5ac, #4e4633);
+  --primary: light-dark(#735c00, #efc11c);
+  --on-primary: light-dark(#fff, #3c2f00);
+  --primary-c: light-dark(#ffe088, #574500);
+  --on-primary-c: light-dark(#241a00, #ffe088);
+  --bar-none: light-dark(#ebdfc4, #403926);
+}
+[data-palette="red"] {
+  --bg: light-dark(#fff8f7, #1d100e);
+  --surface-low: light-dark(#fff0ee, #261816);
+  --surface: light-dark(#ffe9e6, #2b1c1a);
+  --surface-high: light-dark(#fee2de, #362624);
+  --surface-highest: light-dark(#f8dcd9, #42312e);
+  --on: light-dark(#261816, #f8dcd9);
+  --on-var: light-dark(#5a403d, #e2beb9);
+  --outline: light-dark(#8e706c, #a98985);
+  --outline-var: light-dark(#e2beb9, #5a403d);
+  --primary: light-dark(#b4271f, #ffb4aa);
+  --on-primary: light-dark(#fff, #690003);
+  --primary-c: light-dark(#ffdad5, #910809);
+  --on-primary-c: light-dark(#410001, #ffdad5);
+  --bar-none: light-dark(#fdd7d2, #4b3330);
+}
+[data-palette="gray"] {
+  --bg: light-dark(#f9f9f9, #131313);
+  --surface-low: light-dark(#f3f3f3, #1b1b1b);
+  --surface: light-dark(#eeeeee, #1f1f1f);
+  --surface-high: light-dark(#e8e8e8, #2a2a2a);
+  --surface-highest: light-dark(#e2e2e2, #353535);
+  --on: light-dark(#1b1b1b, #e2e2e2);
+  --on-var: light-dark(#474747, #c6c6c6);
+  --outline: light-dark(#777777, #919191);
+  --outline-var: light-dark(#c6c6c6, #474747);
+  --primary: light-dark(#5e5e5e, #c6c6c6);
+  --on-primary: light-dark(#fff, #303030);
+  --primary-c: light-dark(#e2e2e2, #474747);
+  --on-primary-c: light-dark(#1b1b1b, #e2e2e2);
+  --bar-none: light-dark(#dfdfdf, #393939);
 }
 
 :root[data-theme="light"] { color-scheme: light; }
@@ -178,12 +249,23 @@ code { font-family: var(--mono); font-size: 0.9em; overflow-wrap: anywhere; }
   text-decoration: none;
   transition: var(--press);
 }
+/* Outer corners concentric with the pill .nav: half the 44px item height.
+   999px would trigger radius scaling and flatten the 12px inner corners.
+   Must precede the selected and pressed rules so their radii win. */
+.nav-item:first-child { border-start-start-radius: 22px; border-end-start-radius: 22px; }
+.nav-item:last-child { border-start-end-radius: 22px; border-end-end-radius: 22px; }
 .nav-item:hover { background: color-mix(in oklch, var(--on) 8%, transparent); }
 .nav-item[aria-current] { padding-inline: 26px; border-radius: 999px; background: var(--primary); color: var(--on-primary); font-weight: 700; }
+.nav-item[aria-current] + .nav-item { padding-inline-start: 10px; }
+.nav-item:has(+ .nav-item[aria-current]) { padding-inline-end: 10px; }
 .nav-item:active { border-radius: 14px; transform: scale(0.96); }
 .nav-form { display: contents; }
 
+.theme { position: relative; }
+
 .theme-btn {
+  position: relative;
+  z-index: 16;
   width: 48px;
   height: 48px;
   display: grid;
@@ -196,16 +278,117 @@ code { font-family: var(--mono); font-size: 0.9em; overflow-wrap: anywhere; }
   transition: var(--press);
 }
 .theme-btn:hover { border-radius: 14px; }
+/* Concentric with the popup's 28px corner, 16px out. */
+.theme-btn[aria-expanded="true"] { border-radius: 12px; }
 .theme-btn:active { transform: scale(0.9) rotate(-20deg); }
-.theme-btn .icon { grid-area: 1 / 1; }
-/* The icon names the theme a click switches to. */
-.theme-btn .icon:last-child { display: none; }
-:root[data-theme="dark"] .theme-btn .icon:first-child { display: none; }
-:root[data-theme="dark"] .theme-btn .icon:last-child { display: block; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .theme-btn .icon:first-child { display: none; }
-  :root:not([data-theme="light"]) .theme-btn .icon:last-child { display: block; }
+/* Icons in markup order: auto, dark, light. */
+.theme-btn .icon { display: none; }
+:root:not([data-theme]) .theme-btn .icon:nth-child(1),
+:root[data-theme="dark"] .theme-btn .icon:nth-child(2),
+:root[data-theme="light"] .theme-btn .icon:nth-child(3) { display: block; }
+
+.theme-menu {
+  z-index: 15;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--on);
 }
+/* The surface is its own layer so it can grow with its shadow, which a
+   clip-path would cut off. */
+.theme-menu::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 28px;
+  background: var(--surface-high);
+  box-shadow: 0 6px 20px var(--shadow), 0 1px 3px var(--shadow);
+}
+.theme-menu:modal { inset: 0; width: min(360px, calc(100% - 32px)); margin: auto; animation: pop 300ms var(--spring); }
+.theme-menu::backdrop { background: oklch(0 0 0 / 0.32); }
+/* Fills the dialog, so a click that lands on the modal itself came from
+   the backdrop. */
+.theme-body { display: flex; flex-direction: column; gap: 14px; padding: 16px; }
+.theme-menu:modal .theme-body { gap: 20px; padding: 20px 24px 28px; }
+
+/* The popup reaches 16px past the button, which stays on top as its header
+   icon. Until .expanded it is collapsed onto the button, in its colour. */
+.theme-menu:not(:modal) { inset: -16px -16px auto auto; pointer-events: none; }
+.theme-menu:not(:modal)::before {
+  inset: 16px 16px calc(100% - 64px) calc(100% - 64px);
+  border-radius: 24px;
+  background: var(--primary-c);
+  box-shadow: 0 6px 20px transparent, 0 1px 3px transparent;
+  transition: inset 200ms var(--shape-ease), border-radius 200ms var(--shape-ease), background-color 200ms, box-shadow 200ms;
+}
+.theme-menu:not(:modal) .theme-body {
+  clip-path: inset(16px 16px calc(100% - 64px) calc(100% - 64px) round 24px);
+  opacity: 0;
+  transition: clip-path 200ms var(--shape-ease), opacity 70ms;
+}
+.theme-menu.expanded { pointer-events: auto; }
+.theme-menu.expanded::before {
+  inset: 0;
+  border-radius: 28px;
+  background: var(--surface-high);
+  box-shadow: 0 6px 20px var(--shadow), 0 1px 3px var(--shadow);
+  transition: inset 330ms var(--shape-ease), border-radius 330ms var(--shape-ease), background-color 200ms, box-shadow 330ms;
+}
+.theme-menu.expanded .theme-body {
+  clip-path: inset(0 round 28px);
+  opacity: 1;
+  transition: clip-path 330ms var(--shape-ease), opacity 170ms 70ms;
+}
+
+.theme-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-inline-start: 4px; }
+.theme-menu:not(:modal) .theme-head { min-height: 48px; }
+.theme-title { margin: 0; color: var(--on-var); font-size: 14px; line-height: 20px; font-weight: 650; }
+.theme-menu:modal .theme-title { color: var(--on); font-size: 24px; line-height: 32px; font-weight: 720; font-variation-settings: "wdth" 112; }
+.theme-close {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  margin: -4px -8px -4px 0;
+  border: 0;
+  border-radius: 20px;
+  background: transparent;
+  color: var(--on-var);
+  cursor: pointer;
+  transition: var(--press);
+}
+.theme-close:hover { background: color-mix(in oklch, var(--on) 8%, transparent); }
+.theme-close:active { border-radius: 12px; transform: scale(0.9); }
+.theme-menu:not(:modal) .theme-close { display: none; }
+
+.theme-menu input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+
+.theme-modes .seg { flex: 1 1 auto; justify-content: center; padding-inline: 14px; cursor: pointer; }
+.theme-modes .seg:has(:checked) { padding-inline: 20px; }
+.theme-modes .seg:has(:focus-visible) { outline: 3px solid var(--primary); outline-offset: 2px; }
+
+.theme-colors { display: flex; justify-content: space-between; gap: 4px; }
+.theme-color {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: box-shadow 200ms;
+}
+.theme-color:hover { background: color-mix(in oklch, var(--on) 8%, transparent); }
+.theme-color:has(:checked) { box-shadow: inset 0 0 0 3px var(--primary); }
+.theme-color:has(:focus-visible) { outline: 3px solid var(--on); outline-offset: 2px; }
+.theme-swatch { width: 40px; height: 40px; transition: transform 500ms var(--spring); }
+.theme-color:has(:checked) .theme-swatch { transform: scale(0.75); }
+.theme-color:active .theme-swatch { transform: scale(0.85); }
+.theme-swatch path:nth-child(1) { fill: var(--primary-c); }
+.theme-swatch path:nth-child(2) { fill: var(--on-primary-c); }
+.theme-swatch path:nth-child(3) { fill: var(--primary); }
 
 /* ---------- buttons ---------- */
 
@@ -741,6 +924,7 @@ a.item-head:focus-visible { outline: none; }
   gap: 6px;
   min-height: 44px;
   padding: 0 16px;
+  border-radius: 8px;
   background: var(--primary-c);
   color: var(--on-primary-c);
   font-size: 15px;
@@ -748,9 +932,10 @@ a.item-head:focus-visible { outline: none; }
   text-decoration: none;
   transition: var(--press);
 }
-.seg:first-child { border-radius: 999px 8px 8px 999px; }
-.seg:last-child { border-radius: 8px 999px 999px 8px; }
-.seg[aria-current] { padding-inline: 22px; border-radius: 999px; background: var(--primary); color: var(--on-primary); }
+/* Half the 44px height: 999px would scale the 8px inner corners to nothing. */
+.seg:first-child { border-radius: 22px 8px 8px 22px; }
+.seg:last-child { border-radius: 8px 22px 22px 8px; }
+.seg[aria-current], .seg:has(:checked) { padding-inline: 22px; border-radius: 999px; background: var(--primary); color: var(--on-primary); }
 .seg:active { transform: scale(0.95); }
 .seg .icon { width: 20px; height: 20px; }
 
@@ -924,11 +1109,13 @@ a.item-head:focus-visible { outline: none; }
   .page { padding: 16px 16px 32px; gap: 20px; }
 
   /* Navigation wraps onto its own line below the brand and theme. */
-  .theme-btn { order: 1; }
+  .theme { order: 1; }
   .nav { order: 2; }
   .brand-name { font-size: 22px; }
   .nav-item { padding-inline: 14px; }
   .nav-item[aria-current] { padding-inline: 20px; }
+  .nav-item[aria-current] + .nav-item { padding-inline-start: 8px; }
+  .nav-item:has(+ .nav-item[aria-current]) { padding-inline-end: 8px; }
 
   .hero { gap: 20px; padding: 28px 24px; border-radius: 40px 40px 40px 16px; }
   .hero-shape { --size: 112px; }
@@ -1001,5 +1188,6 @@ a.item-head:focus-visible { outline: none; }
 }
 
 @media (forced-colors: active) {
-  .bar, .swatch, .mshape .shape path, .win, .win-bar { forced-color-adjust: none; }
+  .bar, .swatch, .mshape .shape path, .win, .win-bar, .theme-color { forced-color-adjust: none; }
+  .seg[aria-current], .seg:has(:checked) { forced-color-adjust: none; background: SelectedItem; color: SelectedItemText; }
 }

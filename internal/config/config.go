@@ -47,11 +47,12 @@ func (t Type) Label() string {
 }
 
 type Config struct {
-	Server   Server    `yaml:"server"`
-	Storage  Storage   `yaml:"storage"`
-	UI       UI        `yaml:"ui"`
-	Defaults Defaults  `yaml:"defaults"`
-	Monitors []Monitor `yaml:"monitors"`
+	Server        Server        `yaml:"server"`
+	Storage       Storage       `yaml:"storage"`
+	UI            UI            `yaml:"ui"`
+	Defaults      Defaults      `yaml:"defaults"`
+	Notifications Notifications `yaml:"notifications"`
+	Monitors      []Monitor     `yaml:"monitors"`
 
 	Path     string         `yaml:"-"`
 	Location *time.Location `yaml:"-"`
@@ -77,6 +78,34 @@ type Defaults struct {
 	Interval Duration `yaml:"interval"`
 	Timeout  Duration `yaml:"timeout"`
 	Retries  *int     `yaml:"retries"`
+}
+
+type Notifications struct {
+	Webhooks []Webhook `yaml:"webhooks"`
+}
+
+type WebhookType string
+
+const (
+	Slack      WebhookType = "slack"
+	Mattermost WebhookType = "mattermost"
+)
+
+func (t WebhookType) Label() string {
+	switch t {
+	case Slack:
+		return "Slack"
+	case Mattermost:
+		return "Mattermost"
+	}
+	return string(t)
+}
+
+type Webhook struct {
+	Type     WebhookType `yaml:"type"`
+	URL      string      `yaml:"url"`
+	Channel  string      `yaml:"channel"`
+	Username string      `yaml:"username"`
 }
 
 type Monitor struct {
@@ -319,6 +348,12 @@ func (c *Config) normalize() error {
 		return errors.New("defaults.retries: must not be negative")
 	}
 
+	for i := range c.Notifications.Webhooks {
+		if err := c.Notifications.Webhooks[i].normalize(); err != nil {
+			return fmt.Errorf("notifications.webhooks[%d]: %w", i, err)
+		}
+	}
+
 	ids := map[string]int{}
 	for i := range c.Monitors {
 		m := &c.Monitors[i]
@@ -338,6 +373,23 @@ func (c *Config) normalize() error {
 	if c.Server.AuthToken == "" {
 		return errors.New("server.auth_token: required, it unlocks /health and the monitor pages")
 	}
+	return nil
+}
+
+func (w *Webhook) normalize() error {
+	w.Type = WebhookType(strings.ToLower(string(w.Type)))
+	switch w.Type {
+	case Slack, Mattermost:
+	case "":
+		return errors.New("type is required (slack or mattermost)")
+	default:
+		return fmt.Errorf("unknown type %q (want slack or mattermost)", w.Type)
+	}
+	if u, err := url.Parse(w.URL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return errors.New("url must be an absolute http:// or https:// URL")
+	}
+	w.Channel = strings.TrimSpace(w.Channel)
+	w.Username = strings.TrimSpace(w.Username)
 	return nil
 }
 

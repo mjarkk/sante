@@ -20,29 +20,93 @@
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
 
+  const theme = document.getElementById("theme");
   const themeButton = document.getElementById("theme-toggle");
-  const systemDark = matchMedia("(prefers-color-scheme: dark)");
-  const storage = {
-    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
-    set(k, v) { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch { /* storage unavailable */ } },
-  };
-  const systemTheme = () => (systemDark.matches ? "dark" : "light");
-  const currentTheme = () => root.dataset.theme || systemTheme();
-  function labelTheme() {
-    const label = `Switch to ${currentTheme() === "dark" ? "light" : "dark"} theme`;
-    themeButton.setAttribute("aria-label", label);
-    themeButton.title = label;
+  const themeMenu = document.getElementById("theme-menu");
+  // Narrow windows get the modal: the button can wrap to the left edge there,
+  // and the right-aligned popup would overflow.
+  const usePopup = matchMedia("(hover: hover) and (pointer: fine) and (min-width: 600px)");
+  function store(k, v) {
+    try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch { /* storage unavailable */ }
   }
-  labelTheme();
-  systemDark.addEventListener("change", labelTheme);
+
+  // Each radio group is named after the root data attribute it sets; the
+  // empty value is the default and removes the attribute.
+  for (const input of themeMenu.querySelectorAll("input")) {
+    input.checked = input.value === (root.dataset[input.name] || "");
+  }
+  themeMenu.addEventListener("change", ({ target: { name, value } }) => {
+    if (value) root.dataset[name] = value;
+    else delete root.dataset[name];
+    store(`sante-${name}`, value);
+  });
+
+  let pinned = false;
+  let closeTimer;
+
+  function openThemeMenu(pin) {
+    clearTimeout(closeTimer);
+    pinned ||= pin;
+    themeButton.setAttribute("aria-expanded", "true");
+    if (!usePopup.matches) {
+      if (!themeMenu.open) themeMenu.showModal();
+      return;
+    }
+    if (!themeMenu.open) {
+      // Not show(): it moves focus into the popup, which a hover must not do.
+      // Keyboard users reach the popup with Tab, as it follows the button.
+      themeMenu.setAttribute("open", "");
+      // Lays out the collapsed state for .expanded to grow from.
+      void themeMenu.offsetWidth;
+    }
+    themeMenu.classList.add("expanded");
+  }
+
+  // The popup shrinks back into the button before it closes; opening it
+  // again midway turns the shrink around.
+  function closeThemeMenu() {
+    clearTimeout(closeTimer);
+    if (!themeMenu.classList.contains("expanded")) return;
+    pinned = false;
+    themeButton.setAttribute("aria-expanded", "false");
+    themeMenu.classList.remove("expanded");
+    Promise.allSettled(themeMenu.getAnimations({ subtree: true }).map((a) => a.finished)).then(() => {
+      if (!themeMenu.classList.contains("expanded")) themeMenu.close();
+    });
+  }
+  themeMenu.addEventListener("close", () => {
+    pinned = false;
+    themeButton.setAttribute("aria-expanded", "false");
+  });
+
   themeButton.addEventListener("click", () => {
-    const next = currentTheme() === "dark" ? "light" : "dark";
-    // Landing back on the system theme drops the override, so the page
-    // follows the system again.
-    if (next === systemTheme()) delete root.dataset.theme;
-    else root.dataset.theme = next;
-    storage.set("sante-theme", root.dataset.theme);
-    labelTheme();
+    if (pinned) closeThemeMenu();
+    else openThemeMenu(true);
+  });
+  theme.addEventListener("pointerenter", (e) => {
+    if (e.pointerType === "mouse" && usePopup.matches) openThemeMenu(false);
+  });
+  // Grace for a pointer that slips out for a moment.
+  theme.addEventListener("pointerleave", (e) => {
+    if (e.pointerType === "mouse" && !pinned) closeTimer = setTimeout(closeThemeMenu, 200);
+  });
+  theme.addEventListener("focusout", (e) => {
+    if (e.relatedTarget && !theme.contains(e.relatedTarget)) closeThemeMenu();
+  });
+  document.addEventListener("pointerdown", (e) => {
+    if (!theme.contains(e.target)) closeThemeMenu();
+  });
+  // While the popup expands, clicks outside its revealed part land on the
+  // dialog too; only on a modal does that mean the backdrop.
+  themeMenu.addEventListener("click", (e) => {
+    const backdrop = e.target === themeMenu && themeMenu.matches(":modal");
+    if (backdrop || e.target.closest(".theme-close")) themeMenu.close();
+  });
+  // A modal closes itself on Escape; the popup does not.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !themeMenu.classList.contains("expanded")) return;
+    if (themeMenu.contains(document.activeElement)) themeButton.focus();
+    closeThemeMenu();
   });
 
 

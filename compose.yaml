@@ -21,6 +21,16 @@ services:
       - ./config.example.yaml:/etc/sante/config.yaml:ro
       - sante-data:/data
     restart: unless-stopped
+    develop:
+      watch:
+        # Templates and static files are embedded in the binary, so they need a rebuild too.
+        - path: .
+          action: rebuild
+          ignore:
+            - config.example.yaml
+            - "**/*_test.go"
+        - path: config.example.yaml
+          action: restart
 
   redis:
     image: redis:8-alpine

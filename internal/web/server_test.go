@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -32,6 +33,11 @@ server:
   auth_token: s3cret
 ui:
   title: Acme Status
+notifications:
+  webhooks:
+    - type: slack
+      url: https://hooks.slack.com/services/T0/B0/hookSecret
+      channel: "#ops"
 monitors:
   - name: Queue
     group: Infra
@@ -60,7 +66,7 @@ monitors:
 		jobs = append(jobs, scheduler.Job{Monitor: m, Checker: c})
 	}
 	log := slog.New(slog.DiscardHandler)
-	sched := scheduler.New(st, jobs, log)
+	sched := scheduler.New(st, jobs, nil, log)
 	srv, err := New(cfg, st, sched, "test", log)
 	if err != nil {
 		t.Fatal(err)
@@ -146,13 +152,19 @@ func TestPages(t *testing.T) {
 	if report.Status != "ok" || len(report.Settings.Monitors) != 2 {
 		t.Errorf("report = %+v", report)
 	}
-	if strings.Contains(body, "hunter2") {
-		t.Error("health report leaks the database password")
+	if strings.Contains(body, "hunter2") || strings.Contains(body, "hookSecret") {
+		t.Error("health report leaks the database password or the webhook URL")
+	}
+	if !strings.Contains(body, `"url": "https://hooks.slack.com/xxxxx"`) {
+		t.Errorf("health report does not list the webhook: %s", body)
 	}
 
 	resp, body = get(t, ts.URL+"/health", "Authorization", bearer)
 	if !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/html") || !strings.Contains(body, "server.listen") {
 		t.Errorf("health page is not HTML with settings: %s", resp.Header.Get("Content-Type"))
+	}
+	if !strings.Contains(body, "slack · https://hooks.slack.com/xxxxx · #ops") || strings.Contains(body, "hookSecret") {
+		t.Errorf("health page does not list the redacted webhook:\n%s", body)
 	}
 
 	resp, body = get(t, ts.URL+"/api/status")
@@ -233,6 +245,16 @@ func TestAssets(t *testing.T) {
 	resp, _ = get(t, ts.URL+href, "Accept-Encoding", "gzip")
 	if resp.Header.Get("Content-Encoding") != "gzip" || !strings.Contains(resp.Header.Get("Cache-Control"), "immutable") {
 		t.Errorf("app.css headers = %v", resp.Header)
+	}
+	_, css := get(t, ts.URL+href)
+	swatches := regexp.MustCompile(`data-palette="(\w+)"`).FindAllStringSubmatch(body, -1)
+	if len(swatches) == 0 {
+		t.Error("page has no theme color swatches")
+	}
+	for _, m := range swatches {
+		if !strings.Contains(css, `[data-palette="`+m[1]+`"]`) {
+			t.Errorf("app.css does not define the %s palette its swatch shows", m[1])
+		}
 	}
 	if resp, _ = get(t, ts.URL+"/static/missing.js"); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("missing asset = %d", resp.StatusCode)

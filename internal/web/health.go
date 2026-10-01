@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/back-to-code/sante/internal/check"
+	"github.com/back-to-code/sante/internal/notify"
 )
 
 type healthReport struct {
@@ -48,6 +49,7 @@ type healthSettings struct {
 	RetentionDays int               `json:"retention_days"`
 	UI            uiSettings        `json:"ui"`
 	Defaults      defaultSettings   `json:"defaults"`
+	Webhooks      []webhookSettings `json:"webhooks"`
 	Monitors      []monitorSettings `json:"monitors"`
 }
 
@@ -60,6 +62,13 @@ type defaultSettings struct {
 	Interval string `json:"interval"`
 	Timeout  string `json:"timeout"`
 	Retries  int    `json:"retries"`
+}
+
+type webhookSettings struct {
+	Type     string `json:"type"`
+	URL      string `json:"url"`
+	Channel  string `json:"channel,omitempty"`
+	Username string `json:"username,omitempty"`
 }
 
 type monitorSettings struct {
@@ -111,8 +120,14 @@ func (s *Server) healthReport(ctx context.Context) healthReport {
 			RetentionDays: days,
 			UI:            uiSettings{cfg.UI.Title, int(cfg.UI.Refresh.Std().Seconds())},
 			Defaults:      defaultSettings{cfg.Defaults.Interval.String(), cfg.Defaults.Timeout.String(), *cfg.Defaults.Retries},
+			Webhooks:      []webhookSettings{},
 			Monitors:      []monitorSettings{},
 		},
+	}
+	for _, w := range cfg.Notifications.Webhooks {
+		h.Settings.Webhooks = append(h.Settings.Webhooks, webhookSettings{
+			Type: string(w.Type), URL: notify.RedactURL(w.URL), Channel: w.Channel, Username: w.Username,
+		})
 	}
 
 	pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)

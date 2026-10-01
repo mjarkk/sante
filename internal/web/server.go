@@ -26,9 +26,9 @@ import (
 //go:embed templates static
 var files embed.FS
 
-// themeScript runs before first paint so a saved theme never flashes the
-// system one; the CSP allows it by hash.
-const themeScript = `try{var t=localStorage.getItem("sante-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}`
+// themeScript runs before first paint so a saved theme or palette never
+// flashes the default; the CSP allows it by hash.
+const themeScript = `try{var d=document.documentElement.dataset,s=localStorage,t=s.getItem("sante-theme"),p=s.getItem("sante-palette");if(t)d.theme=t;if(p)d.palette=p}catch(e){}`
 
 type Server struct {
 	cfg       *config.Config

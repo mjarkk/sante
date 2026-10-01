@@ -1,5 +1,7 @@
 {{define "mshape"}}<span class="mshape {{.Class}}"{{if .Motion}} data-shapes="{{.Shapes}}" data-motion="{{.Motion}}"{{end}} aria-hidden="true"><svg class="shape" viewBox="0 0 100 100"><path d="{{.Path}}"/></svg>{{icon .Icon}}</span>{{end}}
 
+{{define "theme-swatch"}}<svg class="theme-swatch" viewBox="0 0 100 100" aria-hidden="true"><path d="M50 50V0A50 50 0 0 0 0 50Z"/><path d="M50 50V0A50 50 0 0 1 100 50Z"/><path d="M0 50A50 50 0 0 0 100 50Z"/></svg>{{end}}
+
 {{define "bars"}}
 <div class="bars" role="list" aria-label="Daily uptime of {{.Name}} over the last 90 days">
 {{- range .Bars}}<span class="bar" role="listitem" tabindex="{{if .Today}}0{{else}}-1{{end}}" data-level="{{.Level}}" data-date="{{.Date}}" data-summary="{{.Summary}}" data-detail="{{.Detail}}" aria-label="{{.Date}}: {{.Level.Label}}. {{.Summary}}"></span>{{end -}}

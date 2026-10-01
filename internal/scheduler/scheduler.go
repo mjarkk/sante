@@ -24,28 +24,45 @@ type Job struct {
 	Checker check.Checker
 }
 
+// Notifier.Down runs in its own goroutine, possibly for several monitors at
+// once, and Run waits for it to return.
+type Notifier interface {
+	Down(ctx context.Context, m config.Monitor, r store.Result)
+}
+
 type Scheduler struct {
-	store *store.Store
-	jobs  []Job
-	log   *slog.Logger
+	store    *store.Store
+	jobs     []Job
+	notifier Notifier
+	log      *slog.Logger
 
 	lastCheck atomic.Int64
 	running   atomic.Bool
 }
 
-func New(s *store.Store, jobs []Job, log *slog.Logger) *Scheduler {
-	return &Scheduler{store: s, jobs: jobs, log: log}
+// New accepts a nil notifier.
+func New(s *store.Store, jobs []Job, notifier Notifier, log *slog.Logger) *Scheduler {
+	return &Scheduler{store: s, jobs: jobs, notifier: notifier, log: log}
 }
 
 // Run checks every monitor on its interval and prunes old results until ctx
-// is cancelled, then waits for in-flight checks to be recorded.
+// is cancelled, then waits for in-flight checks to be recorded and
+// notifications to be sent.
 func (s *Scheduler) Run(ctx context.Context) {
 	s.running.Store(true)
 	defer s.running.Store(false)
 
+	states, err := s.store.States(ctx)
+	if err != nil {
+		s.log.Error("loading the last known states", "err", err)
+	}
 	var wg sync.WaitGroup
 	for _, job := range s.jobs {
-		wg.Go(func() { s.loop(ctx, job) })
+		var wasUp *bool
+		if st, ok := states[job.Monitor.ID]; ok {
+			wasUp = &st.Up
+		}
+		wg.Go(func() { s.loop(ctx, job, wasUp, &wg) })
 	}
 	wg.Go(func() { s.prune(ctx) })
 	wg.Wait()
@@ -61,7 +78,10 @@ func (s *Scheduler) LastCheck() time.Time {
 	return time.Time{}
 }
 
-func (s *Scheduler) loop(ctx context.Context, job Job) {
+// wasUp is the stored state, so a restart does not announce a monitor that
+// was already down. Without one the monitor counts as up, so a monitor that
+// fails its very first check is still announced.
+func (s *Scheduler) loop(ctx context.Context, job Job, wasUp *bool, wg *sync.WaitGroup) {
 	interval := job.Monitor.Interval.Std()
 	// Spread the first checks so a restart does not hit every target at once.
 	startIn := rand.N(min(interval, 5*time.Second))
@@ -71,7 +91,6 @@ func (s *Scheduler) loop(ctx context.Context, job Job) {
 	case <-time.After(startIn):
 	}
 
-	var wasUp *bool
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
@@ -82,6 +101,9 @@ func (s *Scheduler) loop(ctx context.Context, job Job) {
 				s.lastCheck.Store(r.CheckedAt.UnixMilli())
 			}
 			s.logResult(job.Monitor, r, wasUp)
+			if !r.Up && (wasUp == nil || *wasUp) && s.notifier != nil {
+				wg.Go(func() { s.notifier.Down(ctx, job.Monitor, r) })
+			}
 			wasUp = &r.Up
 		}
 		select {

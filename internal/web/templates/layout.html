@@ -31,7 +31,29 @@
   {{- else if ne .Nav "login"}}
   <button class="btn btn-text" type="button" popovertarget="auth">Authenticate</button>
   {{- end}}
-  <button class="theme-btn" id="theme-toggle" type="button" aria-label="Switch theme" title="Switch theme">{{icon "dark"}}{{icon "light"}}</button>
+  <div class="theme" id="theme">
+    <button class="theme-btn" id="theme-toggle" type="button" aria-label="Theme" aria-haspopup="dialog" aria-expanded="false" aria-controls="theme-menu">{{icon "auto"}}{{icon "dark"}}{{icon "light"}}</button>
+    <dialog class="theme-menu" id="theme-menu" aria-labelledby="theme-title">
+      <div class="theme-body">
+        <div class="theme-head">
+          <h2 class="theme-title" id="theme-title">Theme</h2>
+          <button class="theme-close" type="button" aria-label="Close">{{icon "close"}}</button>
+        </div>
+        <div class="seg-group theme-modes" role="radiogroup" aria-label="Mode">
+          <label class="seg"><input type="radio" name="theme" value="">{{icon "auto"}}Auto</label>
+          <label class="seg"><input type="radio" name="theme" value="dark">{{icon "dark"}}Dark</label>
+          <label class="seg"><input type="radio" name="theme" value="light">{{icon "light"}}Light</label>
+        </div>
+        <div class="theme-colors" role="radiogroup" aria-label="Color">
+          <label class="theme-color" data-palette="violet"><input type="radio" name="palette" value="" aria-label="Violet">{{template "theme-swatch"}}</label>
+          <label class="theme-color" data-palette="teal"><input type="radio" name="palette" value="teal" aria-label="Teal">{{template "theme-swatch"}}</label>
+          <label class="theme-color" data-palette="yellow"><input type="radio" name="palette" value="yellow" aria-label="Yellow">{{template "theme-swatch"}}</label>
+          <label class="theme-color" data-palette="red"><input type="radio" name="palette" value="red" aria-label="Red">{{template "theme-swatch"}}</label>
+          <label class="theme-color" data-palette="gray"><input type="radio" name="palette" value="gray" aria-label="Gray">{{template "theme-swatch"}}</label>
+        </div>
+      </div>
+    </dialog>
+  </div>
 </header>
 <main id="content" class="content">
 {{template "content" .}}

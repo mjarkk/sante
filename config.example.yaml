@@ -31,6 +31,17 @@ defaults:
   timeout: 10s                          # capped at the interval
   retries: 1                            # extra attempts, 1s apart, before a check counts as failed
 
+# Post to Slack or Mattermost incoming webhooks when a monitor goes down, once
+# per outage.
+# notifications:
+#   webhooks:
+#     - type: slack
+#       url: ${SLACK_WEBHOOK_URL}
+#     - type: mattermost
+#       url: ${MATTERMOST_WEBHOOK_URL}  # https://chat.example.com/hooks/...
+#       channel: ops-alerts             # name from the channel's URL, or @user; default: the webhook's own
+#       username: Sante                 # needs username overrides enabled in Mattermost
+
 monitors:
   # HTTP: healthy when the status matches expect_status (default 200-399)
   # and, if set, the body contains expect_body.

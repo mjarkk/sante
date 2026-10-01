@@ -19,6 +19,7 @@ import (
 
 	"github.com/back-to-code/sante/internal/check"
 	"github.com/back-to-code/sante/internal/config"
+	"github.com/back-to-code/sante/internal/notify"
 	"github.com/back-to-code/sante/internal/scheduler"
 	"github.com/back-to-code/sante/internal/seed"
 	"github.com/back-to-code/sante/internal/store"
@@ -146,7 +147,7 @@ func serve(path string, seedEmpty bool) error {
 		}
 	}
 
-	sched := scheduler.New(st, jobs, log)
+	sched := scheduler.New(st, jobs, notify.New(cfg, check.UserAgent, log), log)
 	srv, err := web.New(cfg, st, sched, version, log)
 	if err != nil {
 		return err
@@ -171,7 +172,7 @@ func serve(path string, seedEmpty bool) error {
 	go func() { serveErr <- httpServer.Serve(ln) }()
 
 	log.Info("sante started", "version", version, "listen", ln.Addr().String(), "monitors", len(jobs),
-		"database", cfg.Storage.Path, "timezone", cfg.Location.String())
+		"webhooks", len(cfg.Notifications.Webhooks), "database", cfg.Storage.Path, "timezone", cfg.Location.String())
 
 	select {
 	case err = <-serveErr:
@@ -239,6 +240,9 @@ func validate(path string) error {
 	for _, m := range cfg.Monitors {
 		target, _ := check.Describe(m)
 		fmt.Printf("  %-24s %-10s every %-6s %s\n", m.ID, m.Type.Label(), m.Interval, target)
+	}
+	for _, w := range cfg.Notifications.Webhooks {
+		fmt.Printf("  %-24s %-10s %s\n", "notify", w.Type.Label(), strings.TrimSpace(notify.RedactURL(w.URL)+" "+w.Channel))
 	}
 	return nil
 }

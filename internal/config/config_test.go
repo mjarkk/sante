@@ -80,6 +80,11 @@ server:
 defaults:
   interval: 30s
   timeout: 45s
+notifications:
+  webhooks:
+    - type: Mattermost
+      url: https://chat.example.com/hooks/abc123
+      channel: ' #ops '
 monitors:
   - name: Public API
     type: http
@@ -115,6 +120,10 @@ monitors:
 		t.Errorf("ui.title = %q, want the default", cfg.UI.Title)
 	}
 
+	if hooks := cfg.Notifications.Webhooks; len(hooks) != 1 || hooks[0].Type != Mattermost || hooks[0].Channel != "#ops" {
+		t.Errorf("webhooks = %+v", hooks)
+	}
+
 	api, cache, orders := cfg.Monitors[0], cfg.Monitors[1], cfg.Monitors[2]
 	if api.ID != "public-api" || api.Method != "GET" || !*api.FollowRedirects {
 		t.Errorf("http defaults not applied: %+v", api)
@@ -147,6 +156,10 @@ func TestParseErrors(t *testing.T) {
 		"server:\n  listen: ${PORT:?is needed}\n":                                                                 `line 2: environment variable PORT is needed`,
 		"defaults:\n  interval: soon\n":                                                                           `invalid duration "soon"`,
 		"monitors: []\n":                                                                                          `server.auth_token: required`,
+		"notifications:\n  webhooks:\n    - url: https://hooks.slack.com/services/x\n":                            `notifications.webhooks[0]: type is required`,
+		"notifications:\n  webhooks:\n    - type: teams\n      url: https://example.com/x\n":                      `unknown type "teams"`,
+		"notifications:\n  webhooks:\n    - type: slack\n      url: ${SANTE_TEST_UNSET_HOOK}\n":                   `url must be an absolute`,
+		"notifications:\n  webhook:\n    - type: slack\n":                                                         `line 2: unknown field "webhook"`,
 	}
 	for in, want := range tests {
 		_, _, err := Parse([]byte(in))

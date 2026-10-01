@@ -60,6 +60,11 @@
     <div><dt>defaults.interval</dt><dd>{{$r.Settings.Defaults.Interval}}</dd></div>
     <div><dt>defaults.timeout</dt><dd>{{$r.Settings.Defaults.Timeout}}</dd></div>
     <div><dt>defaults.retries</dt><dd>{{$r.Settings.Defaults.Retries}}</dd></div>
+    {{- range $i, $w := $r.Settings.Webhooks}}
+    <div><dt>notifications.webhooks[{{$i}}]</dt><dd>{{$w.Type}} · {{$w.URL}}{{with $w.Channel}} · {{.}}{{end}}{{with $w.Username}} · as {{.}}{{end}}</dd></div>
+    {{- else}}
+    <div><dt>notifications.webhooks</dt><dd>none</dd></div>
+    {{- end}}
   </dl>
 </section>
 
