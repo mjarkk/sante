@@ -96,10 +96,13 @@ notifications:
   waits as long as `Retry-After` says. If all attempts fail, the error is
   logged as `sending down notification`. Mattermost only says why in
   developer mode, but a `404` from it means the channel wasn't found.
+- `sante test-webhooks` sends a test alert to every webhook and prints which
+  ones failed and why.
 - Slack app webhooks ignore `channel` and `username`.
 - In Mattermost, `channel` is the name from the channel's URL (`ops-alerts`),
   not its display name. A webhook locked to one channel can't post to others.
   `username` only works if *Enable integrations to override usernames* is on
-  in the System Console.
+  in the System Console. Mattermost alerts are plain text with no
+  attachment, because Mattermost's search skips attachments.
 - Webhook URLs contain a secret. Logs, `sante validate` and the health page
   show only the host.

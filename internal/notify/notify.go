@@ -56,8 +56,20 @@ func New(cfg *config.Config, userAgent string, log *slog.Logger) *Notifier {
 // failures rather than returning them. Cancelling ctx stops retries but not
 // an attempt in flight.
 func (n *Notifier) Down(ctx context.Context, m config.Monitor, r store.Result) {
+	n.send(ctx, m, r)
+}
+
+// Test sends a down alert for a made-up monitor to every webhook. The errors
+// are in the order of the configured webhooks, nil for each one that took it.
+func (n *Notifier) Test(ctx context.Context) []error {
+	m := config.Monitor{ID: "notification-test", Name: n.title + " notification test", Type: config.HTTP}
+	return n.send(ctx, m, store.Result{CheckedAt: time.Now(), Message: "Test alert from sante test-webhooks; nothing is down."})
+}
+
+func (n *Notifier) send(ctx context.Context, m config.Monitor, r store.Result) []error {
+	errs := make([]error, len(n.hooks))
 	var wg sync.WaitGroup
-	for _, h := range n.hooks {
+	for i, h := range n.hooks {
 		wg.Go(func() {
 			body, err := json.Marshal(downMessage(h.Webhook, n.title, m, r))
 			if err == nil {
@@ -69,9 +81,11 @@ func (n *Notifier) Down(ctx context.Context, m config.Monitor, r store.Result) {
 			} else {
 				n.log.Info("sent down notification", attrs...)
 			}
+			errs[i] = err
 		})
 	}
 	wg.Wait()
+	return errs
 }
 
 func (n *Notifier) deliver(ctx context.Context, h *webhook, body []byte) error {

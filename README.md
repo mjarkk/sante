@@ -50,6 +50,7 @@ go run . -config config.yaml
 sante [serve] [-seed]   run the monitor and web UI (default)
 sante seed [-reset]     fill the database with 90 days of fake history
 sante validate          check the config and list the monitors
+sante test-webhooks     send a test alert to every webhook
 sante healthcheck       exit 0 if the local instance is healthy
 sante version           print the version
 ```

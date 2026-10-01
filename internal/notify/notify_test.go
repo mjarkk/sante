@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -63,26 +62,23 @@ func TestDownMessage(t *testing.T) {
 		{"slack group", slack.Attachments[0].Fields[0].Value, "Platform &amp; Co"},
 		{"slack footer", slack.Attachments[0].Footer, "Acme &lt;Status&gt;"},
 		{"slack channel", slack.Channel, "#ops"},
-		{"mattermost text", mattermost.Text, `:red_circle: **Payments \[API\]** is down`},
-		{"mattermost reason", mattermost.Attachments[0].Text, "`unexpected status 503 <!channel> & 'x' more`"},
-		{"mattermost group", mattermost.Attachments[0].Fields[0].Value, "Platform & Co"},
-		{"mattermost footer", mattermost.Attachments[0].Footer, "Acme <Status>"},
+		{"slack fallback", slack.Attachments[0].Fallback, "Payments [API] is down: " + downResult.Message},
+		{"mattermost text", mattermost.Text, `:red_circle: **Payments \[API\]** is down` + "\n" +
+			"`unexpected status 503 <!channel> & 'x' more`\n" +
+			"**Group:** Platform & Co · **Type:** TCP\n" +
+			`_Acme \<Status\>_`},
 		{"mattermost username", mattermost.Username, "Sante"},
-		{"fallback", mattermost.Attachments[0].Fallback, "Payments [API] is down: " + downResult.Message},
 	}
 	for _, tt := range tests {
 		if tt.got != tt.want {
 			t.Errorf("%s = %q, want %q", tt.name, tt.got, tt.want)
 		}
 	}
-	if mattermost.Attachments[0].MrkdwnIn != nil {
-		t.Errorf("mrkdwn_in sent to Mattermost: %v", mattermost.Attachments[0].MrkdwnIn)
-	}
 }
 
 // TestMattermostPayload holds the payload to the rules Mattermost enforces
-// beyond Slack's; see IncomingWebhookRequest and MessageAttachment.IsValid in
-// mattermost/server/public/model.
+// beyond Slack's (see IncomingWebhookRequest in mattermost/server/public/model),
+// and to text only, since its search skips attachments.
 func TestMattermostPayload(t *testing.T) {
 	cfg := testConfig(t, "    - type: mattermost\n      url: https://chat.example.com/hooks/secret")
 	r := downResult
@@ -93,36 +89,20 @@ func TestMattermostPayload(t *testing.T) {
 	}
 
 	var req struct {
-		Text        string           `json:"text"`
-		Channel     *string          `json:"channel"`
-		Type        *string          `json:"type"`
-		Blocks      any              `json:"blocks"`
-		Attachments []map[string]any `json:"attachments"`
+		Text        string  `json:"text"`
+		Channel     *string `json:"channel"`
+		Type        *string `json:"type"`
+		Blocks      any     `json:"blocks"`
+		Attachments any     `json:"attachments"`
 	}
 	if err := json.Unmarshal(body, &req); err != nil {
 		t.Fatal(err)
 	}
-	if req.Text == "" {
-		t.Error("text is empty")
+	if req.Channel != nil || req.Type != nil || req.Blocks != nil || req.Attachments != nil {
+		t.Errorf("payload sets channel, type, blocks or attachments: %s", body)
 	}
-	if req.Channel != nil || req.Type != nil || req.Blocks != nil {
-		t.Errorf("payload sets channel, type or blocks: %s", body)
-	}
-	for _, a := range req.Attachments {
-		if c, _ := a["color"].(string); !regexp.MustCompile(`^#[0-9a-fA-F]{6}$`).MatchString(c) {
-			t.Errorf("color %q is not #rrggbb", c)
-		}
-		if _, ok := a["ts"]; ok {
-			t.Error("attachment has a ts")
-		}
-		if text, _ := a["text"].(string); len([]rune(text)) > maxMessageRunes+2 {
-			t.Errorf("reason is %d runes long, want it truncated", len([]rune(text)))
-		}
-		for _, f := range a["fields"].([]any) {
-			if _, ok := f.(map[string]any)["value"].(string); !ok {
-				t.Errorf("field value is not a string: %v", f)
-			}
-		}
+	if got := strings.Count(req.Text, "é"); got != maxMessageRunes-1 {
+		t.Errorf("text has %d runes of the reason, want it truncated to %d", got, maxMessageRunes-1)
 	}
 }
 
@@ -229,6 +209,26 @@ func TestDelivery(t *testing.T) {
 				t.Errorf("log leaks the webhook secret:\n%s", logs.String())
 			}
 		})
+	}
+}
+
+func TestTest(t *testing.T) {
+	ok := &receiver{}
+	okSrv := httptest.NewServer(ok)
+	defer okSrv.Close()
+	rejecting := &receiver{statuses: []int{404}, headers: make([]map[string]string, 1), replies: []string{"channel_not_found"}}
+	rejectingSrv := httptest.NewServer(rejecting)
+	defer rejectingSrv.Close()
+
+	cfg := testConfig(t, "    - type: slack\n      url: "+rejectingSrv.URL+"/services/T0/B0/secret\n"+
+		"    - type: mattermost\n      url: "+okSrv.URL+"/hooks/secret")
+	errs := New(cfg, "sante/test", slog.New(slog.DiscardHandler)).Test(t.Context())
+
+	if len(errs) != 2 || errs[0] == nil || errs[0].Error() != "404 Not Found: channel_not_found" || errs[1] != nil {
+		t.Errorf("errs = %v, want the Slack rejection and nil", errs)
+	}
+	if !strings.Contains(ok.bodies[0], "notification test** is down") || !strings.Contains(ok.bodies[0], "nothing is down") {
+		t.Errorf("test alert does not say it is a test: %s", ok.bodies[0])
 	}
 }
 

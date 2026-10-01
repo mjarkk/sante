@@ -31,13 +31,14 @@ var version = "dev"
 const usage = `Usage: sante [command] [-config path]
 
 Commands:
-  serve        run the monitor and web UI (default)
-                 -seed   first fill an empty database with 90 days of demo history
-  seed         fill the database with 90 days of synthetic history and exit
-                 -reset  replace the existing history of the configured monitors
-  validate     check the config file and exit
-  healthcheck  exit 0 when the running instance reports healthy
-  version      print the version
+  serve          run the monitor and web UI (default)
+                   -seed   first fill an empty database with 90 days of demo history
+  seed           fill the database with 90 days of synthetic history and exit
+                   -reset  replace the existing history of the configured monitors
+  validate       check the config file and exit
+  test-webhooks  send a test alert to every webhook and exit
+  healthcheck    exit 0 when the running instance reports healthy
+  version        print the version
 
 The config path defaults to $SANTE_CONFIG, then config.yaml.
 `
@@ -78,6 +79,8 @@ func run(args []string) error {
 		return seedHistory(*configPath, reset)
 	case "validate":
 		return validate(*configPath)
+	case "test-webhooks":
+		return testWebhooks(*configPath)
 	case "healthcheck":
 		return healthcheck(*configPath)
 	case "version":
@@ -243,6 +246,36 @@ func validate(path string) error {
 	}
 	for _, w := range cfg.Notifications.Webhooks {
 		fmt.Printf("  %-24s %-10s %s\n", "notify", w.Type.Label(), strings.TrimSpace(notify.RedactURL(w.URL)+" "+w.Channel))
+	}
+	return nil
+}
+
+func testWebhooks(path string) error {
+	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	cfg, _, err := load(path, log)
+	if err != nil {
+		return err
+	}
+	hooks := cfg.Notifications.Webhooks
+	if len(hooks) == 0 {
+		return fmt.Errorf("%s has no notifications.webhooks", path)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	errs := notify.New(cfg, "sante/"+version, slog.New(slog.DiscardHandler)).Test(ctx)
+	failed := 0
+	for i, w := range hooks {
+		status := "sent"
+		if errs[i] != nil {
+			status = "failed: " + errs[i].Error()
+			failed++
+		}
+		fmt.Printf("  %-10s %s  %s\n", w.Type.Label(), strings.TrimSpace(notify.RedactURL(w.URL)+" "+w.Channel), status)
+	}
+	if failed > 0 {
+		return fmt.Errorf("%d of %d webhooks failed", failed, len(hooks))
 	}
 	return nil
 }

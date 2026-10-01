@@ -13,25 +13,20 @@ const (
 	maxMessageRunes = 500
 )
 
-// message is the part of the incoming webhook payload that Slack and
-// Mattermost render alike, so it has no Block Kit blocks: Mattermost ignores them.
 type message struct {
 	Text        string       `json:"text"`
 	Channel     string       `json:"channel,omitempty"`
 	Username    string       `json:"username,omitempty"`
-	Attachments []attachment `json:"attachments"`
+	Attachments []attachment `json:"attachments,omitempty"`
 }
 
-// attachment has no ts: Mattermost accepts only a string or an integer there
-// but decodes JSON numbers as floats, so Slack's numeric ts fails its
-// validation. Its colors must be #rrggbb or good, warning or danger.
 type attachment struct {
 	Fallback string   `json:"fallback"`
 	Color    string   `json:"color"`
 	Text     string   `json:"text"`
 	Fields   []field  `json:"fields,omitempty"`
 	Footer   string   `json:"footer,omitempty"`
-	MrkdwnIn []string `json:"mrkdwn_in,omitempty"`
+	MrkdwnIn []string `json:"mrkdwn_in"`
 }
 
 type field struct {
@@ -42,26 +37,34 @@ type field struct {
 
 func downMessage(w config.Webhook, title string, m config.Monitor, r store.Result) message {
 	f := formatterFor(w.Type)
+	msg := message{
+		Text:     ":red_circle: " + f.bold(m.Name) + " is down",
+		Channel:  w.Channel,
+		Username: w.Username,
+	}
 	reason := truncate(r.Message, maxMessageRunes)
+	if w.Type == config.Mattermost {
+		// Mattermost's search skips attachments.
+		details := "**Type:** " + m.Type.Label()
+		if m.Group != "" {
+			details = "**Group:** " + f.text(m.Group) + " · " + details
+		}
+		msg.Text = strings.Join([]string{msg.Text, f.code(reason), details, "_" + f.text(title) + "_"}, "\n")
+		return msg
+	}
 	a := attachment{
 		Fallback: m.Name + " is down: " + reason,
 		Color:    downColor,
 		Text:     f.code(reason),
 		Footer:   f.plain(title),
+		MrkdwnIn: []string{"text"},
 	}
 	if m.Group != "" {
 		a.Fields = append(a.Fields, field{Title: "Group", Value: f.text(m.Group), Short: true})
 	}
 	a.Fields = append(a.Fields, field{Title: "Type", Value: m.Type.Label(), Short: true})
-	if w.Type == config.Slack {
-		a.MrkdwnIn = []string{"text"}
-	}
-	return message{
-		Text:        ":red_circle: " + f.bold(m.Name) + " is down",
-		Channel:     w.Channel,
-		Username:    w.Username,
-		Attachments: []attachment{a},
-	}
+	msg.Attachments = []attachment{a}
+	return msg
 }
 
 type formatter struct {
