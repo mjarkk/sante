@@ -25,7 +25,7 @@
   const themeMenu = document.getElementById("theme-menu");
   // Narrow windows get the modal: the button can wrap to the left edge there,
   // and the right-aligned popup would overflow.
-  const usePopup = matchMedia("(hover: hover) and (pointer: fine) and (min-width: 600px)");
+  const usePopup = matchMedia("(hover: hover) and (pointer: fine) and (min-width: 33.75em)");
   function store(k, v) {
     try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch { /* storage unavailable */ }
   }
