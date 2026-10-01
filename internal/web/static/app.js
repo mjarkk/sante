@@ -252,23 +252,28 @@
     tt.label.textContent = label;
     tt.lines.forEach((el, i) => { el.textContent = lines[i] || ""; });
     tooltip.hidden = false;
-    place(target.getBoundingClientRect());
   }
 
-  function place(rect, x) {
-    const tip = tooltip.getBoundingClientRect();
-    const cx = x ?? rect.left + rect.width / 2;
-    let left = cx - tip.width / 2;
-    left = Math.max(12, Math.min(left, window.innerWidth - tip.width - 12));
-    let top = rect.top - tip.height - 10;
-    let originY = "100%";
-    if (top < 8) {
-      top = rect.bottom + 10;
-      originY = "0%";
-    }
+  // Centres the tooltip on x with its bottom edge at `above` or its top edge
+  // at `below`, taking the preferred side unless the viewport has no room.
+  // Offset sizes, not the bounding rect: the pop animation scales the latter.
+  function place(x, above, below, preferBelow) {
+    const w = tooltip.offsetWidth, h = tooltip.offsetHeight;
+    const left = Math.max(12, Math.min(x - w / 2, window.innerWidth - w - 12));
+    const down = preferBelow ? below + h <= window.innerHeight - 8 : above - h < 8;
     tooltip.style.left = `${left}px`;
-    tooltip.style.top = `${top}px`;
-    tooltip.style.setProperty("--origin", `${cx - left}px ${originY}`);
+    tooltip.style.top = `${down ? below : above - h}px`;
+    tooltip.style.setProperty("--origin", `${x - left}px ${down ? "0%" : "100%"}`);
+  }
+
+  // The ::before hit area is as tall as the bar grows.
+  function peakTop(bar) {
+    return bar.getBoundingClientRect().bottom - parseFloat(getComputedStyle(bar, "::before").height);
+  }
+
+  // Clears the arrow or hand, which hangs about 20px below the hotspot.
+  function placeAtPointer(e, bar) {
+    place(e.clientX, peakTop(bar) - 10, e.clientY + 24, true);
   }
 
   function hideTooltip() {
@@ -288,13 +293,26 @@
 
   document.addEventListener("pointerover", (e) => {
     const bar = e.target.closest?.(".bar");
-    if (bar) showBar(bar);
+    if (!bar) return;
+    showBar(bar);
+    placeAtPointer(e, bar);
+  });
+  // Only moves a tooltip already open, so one dismissed with Escape stays shut
+  // until the pointer reaches another day.
+  document.addEventListener("pointermove", (e) => {
+    const bar = e.target.closest?.(".bar");
+    if (bar && bar === anchor) placeAtPointer(e, bar);
   });
   document.addEventListener("pointerout", (e) => {
     if (e.target.closest?.(".bar") && !e.relatedTarget?.closest?.(".bar")) hideTooltip();
   });
+  // A click focuses the bar it lands on; its tooltip stays at the pointer.
   document.addEventListener("focusin", (e) => {
-    if (e.target.classList?.contains("bar")) showBar(e.target);
+    const bar = e.target;
+    if (!bar.classList?.contains("bar") || bar === anchor) return;
+    showBar(bar);
+    const r = bar.getBoundingClientRect();
+    place(r.left + r.width / 2, peakTop(bar) - 10, r.bottom + 10, true);
   });
   document.addEventListener("focusout", (e) => {
     if (e.target.classList?.contains("bar")) hideTooltip();
@@ -363,7 +381,8 @@
         activeWindow = columns.children[index];
         activeWindow.classList.add("active");
         const col = activeWindow.getBoundingClientRect();
-        place(plot.getBoundingClientRect(), col.left + col.width / 2);
+        const rect = plot.getBoundingClientRect();
+        place(col.left + col.width / 2, rect.top - 10, rect.bottom + 10, false);
       }
 
       plot.addEventListener("pointermove", (e) => {
