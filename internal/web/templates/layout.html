@@ -1,0 +1,60 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{if .PageTitle}}{{.PageTitle}} · {{end}}{{.Title}}</title>
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="/favicon.svg?v={{.Asset}}" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wdth,wght@8..144,25..151,100..1000&family=Roboto+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/static/app.css?v={{.Asset}}">
+<script>{{themeScript}}</script>
+<noscript><style>.refresh { display: none; }</style></noscript>
+<script src="/static/app.js?v={{.Asset}}" defer></script>
+</head>
+<body{{if .Refresh}} data-refresh="{{.Refresh}}"{{end}}>
+<a class="skip" href="#content">Skip to content</a>
+<div class="page">
+<header class="top-bar">
+  <a class="brand" href="/">
+    {{template "mshape" (mshape "brand-mark" "cookie9 flower" "monitor" "4000 10 0")}}
+    <span class="brand-name">{{.Title}}</span>
+  </a>
+  {{- if .Authed}}
+  <nav class="nav" aria-label="Main">
+    <a class="nav-item" href="/"{{if eq .Nav "status"}} aria-current="page"{{end}}>Status</a>
+    <a class="nav-item" href="/health"{{if eq .Nav "health"}} aria-current="page"{{end}}>Health</a>
+  </nav>
+  <form class="nav-form" method="post" action="/logout"><button class="btn btn-text" type="submit">Sign out</button></form>
+  {{- else if ne .Nav "login"}}
+  <button class="btn btn-text" type="button" popovertarget="auth">Authenticate</button>
+  {{- end}}
+  <button class="theme-btn" id="theme-toggle" type="button" aria-label="Switch theme" title="Switch theme">{{icon "dark"}}{{icon "light"}}</button>
+</header>
+<main id="content" class="content">
+{{template "content" .}}
+</main>
+<footer class="footer">
+  <span>Days are calendar days in {{.Timezone}}</span>
+  <span aria-hidden="true">·</span>
+  <span>Results are kept for 90 days</span>
+  <span aria-hidden="true">·</span>
+  <span>Sante {{.Version}}</span>
+</footer>
+</div>
+{{if and (not .Authed) (ne .Nav "login")}}
+<div class="auth-pop" id="auth" popover role="dialog" aria-labelledby="auth-title">
+  <h2 class="card-title" id="auth-title">Authenticate</h2>
+  {{template "login-form" .Login}}
+</div>
+{{end}}
+<div class="tooltip" id="tooltip" role="tooltip" hidden>
+  <div class="tt-title"></div>
+  <div class="tt-value"><span class="tt-key"></span><span class="tt-label"></span></div>
+  <div class="tt-line"></div>
+  <div class="tt-line tt-muted"></div>
+</div>
+</body>
+</html>{{end}}

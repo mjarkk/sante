@@ -1,0 +1,391 @@
+"use strict";
+
+(() => {
+  const root = document.documentElement;
+  const content = document.getElementById("content");
+  const tooltip = document.getElementById("tooltip");
+  const tt = {
+    title: tooltip.querySelector(".tt-title"),
+    key: tooltip.querySelector(".tt-key"),
+    label: tooltip.querySelector(".tt-label"),
+    lines: tooltip.querySelectorAll(".tt-line"),
+  };
+  const levelLabels = {
+    ok: "No downtime",
+    minor: "Minor disruption",
+    partial: "Partial outage",
+    major: "Major outage",
+    none: "No data",
+  };
+  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+
+
+  const themeButton = document.getElementById("theme-toggle");
+  const systemDark = matchMedia("(prefers-color-scheme: dark)");
+  const storage = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch { /* storage unavailable */ } },
+  };
+  const systemTheme = () => (systemDark.matches ? "dark" : "light");
+  const currentTheme = () => root.dataset.theme || systemTheme();
+  function labelTheme() {
+    const label = `Switch to ${currentTheme() === "dark" ? "light" : "dark"} theme`;
+    themeButton.setAttribute("aria-label", label);
+    themeButton.title = label;
+  }
+  labelTheme();
+  systemDark.addEventListener("change", labelTheme);
+  themeButton.addEventListener("click", () => {
+    const next = currentTheme() === "dark" ? "light" : "dark";
+    // Landing back on the system theme drops the override, so the page
+    // follows the system again.
+    if (next === systemTheme()) delete root.dataset.theme;
+    else root.dataset.theme = next;
+    storage.set("sante-theme", root.dataset.theme);
+    labelTheme();
+  });
+
+
+  // Mirrors shapeSpecs in funcs.go, which draws the first frame.
+  const SHAPES = {
+    circle: ["smooth", 0, 0],
+    cookie9: ["scallop", 9, 0.07],
+    cookie12: ["scallop", 12, 0.05],
+    sunny: ["smooth", 8, 0.05],
+    burst: ["burst", 12, 0.11],
+    softburst: ["smooth", 10, 0.08],
+    clover4: ["scallop", 4, 0.2],
+    flower: ["scallop", 8, 0.12],
+    puffy: ["smooth", 6, 0.07],
+    square: ["squircle", 4, 0],
+  };
+  const radiiCache = {};
+
+  function radii(name) {
+    if (radiiCache[name]) return radiiCache[name];
+    const [kind, n, a] = SHAPES[name] || SHAPES.circle;
+    const out = [];
+    for (let i = 0; i < 180; i++) {
+      const t = (i / 180) * Math.PI * 2;
+      let r = 1;
+      if (kind === "smooth") r = 1 + a * Math.cos(n * t);
+      else if (kind === "scallop") r = 1 + a * (2 * Math.abs(Math.cos((n * t) / 2)) - 1);
+      else if (kind === "burst") r = 1 + a * (1 - 2 * Math.abs(Math.sin((n * t) / 2)));
+      else if (kind === "squircle") r = (Math.abs(Math.cos(t)) ** n + Math.abs(Math.sin(t)) ** n) ** (-1 / n);
+      out.push(r);
+    }
+    const peak = Math.max(...out);
+    return (radiiCache[name] = out.map((r) => (r / peak) * 48));
+  }
+
+  function shapePath(r) {
+    let d = "";
+    for (let i = 0; i < r.length; i++) {
+      const t = (i / r.length) * Math.PI * 2;
+      d += `${i ? "L" : "M"}${(50 + r[i] * Math.cos(t)).toFixed(2)} ${(50 + r[i] * Math.sin(t)).toFixed(2)}`;
+    }
+    return `${d}Z`;
+  }
+
+  // Back-out easing: overshoots by about 13%, then settles.
+  const spring = (x) => 1 + 3 * (x - 1) ** 3 + 2 * (x - 1) ** 2;
+
+  let morphs = [];
+
+  function initShapes(scope) {
+    morphs = morphs.filter((m) => m.svg.isConnected);
+    for (const el of scope.querySelectorAll(".mshape[data-shapes]")) {
+      const [period, spin, turn] = el.dataset.motion.split(" ").map(Number);
+      const svg = el.querySelector(".shape");
+      const m = { svg, path: svg.firstElementChild, shapes: el.dataset.shapes.split(" ").map(radii), period, spin, turn, step: 0 };
+      morphs.push(m);
+      if (!reducedMotion.matches) drawShape(m, performance.now());
+    }
+  }
+
+  // Every shape runs on the page clock, so one re-rendered by a refresh
+  // carries on where the old one was.
+  function drawShape(m, now) {
+    const step = Math.floor(now / m.period);
+    const k = spring(Math.min(1, Math.max(0, ((now % m.period) / m.period - 0.6) / 0.4)));
+    if (k > 0 || step !== m.step) {
+      const a = m.shapes[step % m.shapes.length];
+      const b = m.shapes[(step + 1) % m.shapes.length];
+      m.path.setAttribute("d", shapePath(k > 0 ? a.map((r, i) => r + (b[i] - r) * k) : a));
+      m.step = step;
+    }
+    m.svg.style.transform = `rotate(${(now / 1000) * m.spin + (step + k) * m.turn}deg)`;
+  }
+
+
+  // M3 Expressive's wavy circular progress indicator.
+  const every = Number(document.body.dataset.refresh) * 1000;
+  let cycleStart = performance.now();
+
+  function drawRing(now) {
+    const track = content.querySelector(".ring-track");
+    if (!track) return;
+    const progress = track.nextElementSibling;
+    const c = 22, width = 5, amp = 2, waves = 9;
+    const r0 = c - amp - width / 2 - 1;
+    const gap = (width + 3.5) / r0;
+    const end = Math.max(0.001, Math.min(1, (now - cycleStart) / every)) * Math.PI * 2;
+    const phase = reducedMotion.matches ? 0 : (now / 1000) * Math.PI * 2 * 0.3;
+    const steps = Math.max(2, Math.ceil((end / (Math.PI * 2)) * 160));
+    let d = "";
+    for (let i = 0; i <= steps; i++) {
+      const t = (i / steps) * end;
+      // Ease the wave in and out so both ends of the stroke sit on the circle.
+      const e = Math.min(1, t / 0.6, (end - t) / 0.6);
+      const r = r0 + amp * e * e * (3 - 2 * e) * Math.sin(waves * t - phase);
+      const a = t - Math.PI / 2;
+      d += `${i ? "L" : "M"}${(c + r * Math.cos(a)).toFixed(2)} ${(c + r * Math.sin(a)).toFixed(2)}`;
+    }
+    progress.setAttribute("d", d);
+    const t0 = end + gap - Math.PI / 2, t1 = Math.PI * 2 - gap - Math.PI / 2;
+    track.setAttribute("d", t1 - t0 > 0.05
+      ? `M${c + r0 * Math.cos(t0)} ${c + r0 * Math.sin(t0)}A${r0} ${r0} 0 ${t1 - t0 > Math.PI ? 1 : 0} 1 ${c + r0 * Math.cos(t1)} ${c + r0 * Math.sin(t1)}`
+      : "");
+  }
+
+  function frame(now) {
+    if (!reducedMotion.matches) for (const m of morphs) drawShape(m, now);
+    if (every > 0) drawRing(now);
+    requestAnimationFrame(frame);
+  }
+
+
+  // Sizes "Next refresh" so its length matches the height beside the hero.
+  const fitObserver = new ResizeObserver(() => fitRefresh());
+
+  function fitRefresh() {
+    const box = content.querySelector(".refresh-box");
+    const text = box?.firstElementChild;
+    if (!text || getComputedStyle(text).writingMode.startsWith("horizontal")) return;
+    const ems = text.offsetHeight / parseFloat(getComputedStyle(text).fontSize);
+    const size = Math.max(12, Math.floor(box.clientHeight / ems));
+    if (ems && Math.abs(size - parseFloat(getComputedStyle(box).getPropertyValue("--fit"))) >= 1) {
+      box.style.setProperty("--fit", `${size}px`);
+    }
+  }
+
+  function initRefresh() {
+    fitObserver.disconnect();
+    const box = content.querySelector(".refresh-box");
+    if (box) fitObserver.observe(box);
+    fitRefresh();
+  }
+  document.fonts?.ready.then(fitRefresh);
+
+
+  let anchor = null;
+  let activeWindow = null;
+
+  function showTooltip(target, { title, level, label, lines }) {
+    anchor = target;
+    tt.title.textContent = title;
+    tt.key.dataset.level = level;
+    tt.label.textContent = label;
+    tt.lines.forEach((el, i) => { el.textContent = lines[i] || ""; });
+    tooltip.hidden = false;
+    place(target.getBoundingClientRect());
+  }
+
+  function place(rect, x) {
+    const tip = tooltip.getBoundingClientRect();
+    const cx = x ?? rect.left + rect.width / 2;
+    let left = cx - tip.width / 2;
+    left = Math.max(12, Math.min(left, window.innerWidth - tip.width - 12));
+    let top = rect.top - tip.height - 10;
+    let originY = "100%";
+    if (top < 8) {
+      top = rect.bottom + 10;
+      originY = "0%";
+    }
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+    tooltip.style.setProperty("--origin", `${cx - left}px ${originY}`);
+  }
+
+  function hideTooltip() {
+    tooltip.hidden = true;
+    anchor?.classList.remove("active");
+    activeWindow?.classList.remove("active");
+    anchor = activeWindow = null;
+  }
+
+  function showBar(bar) {
+    if (anchor === bar) return;
+    anchor?.classList.remove("active");
+    bar.classList.add("active");
+    const d = bar.dataset;
+    showTooltip(bar, { title: d.date, level: d.level, label: levelLabels[d.level], lines: [d.summary, d.detail] });
+  }
+
+  document.addEventListener("pointerover", (e) => {
+    const bar = e.target.closest?.(".bar");
+    if (bar) showBar(bar);
+  });
+  document.addEventListener("pointerout", (e) => {
+    if (e.target.closest?.(".bar") && !e.relatedTarget?.closest?.(".bar")) hideTooltip();
+  });
+  document.addEventListener("focusin", (e) => {
+    if (e.target.classList?.contains("bar")) showBar(e.target);
+  });
+  document.addEventListener("focusout", (e) => {
+    if (e.target.classList?.contains("bar")) hideTooltip();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") hideTooltip();
+  });
+  window.addEventListener("scroll", () => { if (anchor) hideTooltip(); }, { passive: true });
+
+  // The bars sit above the item's link so they keep their tooltips; a click
+  // on them still opens the monitor.
+  document.addEventListener("click", (e) => {
+    e.target.closest?.(".item-link .bar")?.closest(".item").querySelector("a.item-head").click();
+  });
+
+  // One tab stop per bar strip; arrow keys move between visible days.
+  document.addEventListener("keydown", (e) => {
+    const bar = e.target.classList?.contains("bar") ? e.target : null;
+    if (!bar) return;
+    const bars = [...bar.parentElement.children].filter((b) => b.offsetParent !== null);
+    const i = bars.indexOf(bar);
+    const next = { ArrowLeft: i - 1, ArrowRight: i + 1, Home: 0, End: bars.length - 1 }[e.key];
+    if (next === undefined || !bars[next]) return;
+    e.preventDefault();
+    bar.tabIndex = -1;
+    bars[next].tabIndex = 0;
+    bars[next].focus();
+  });
+
+
+  function ago(ms) {
+    const s = Math.floor(ms / 1000);
+    if (s < 5) return "just now";
+    if (s < 60) return `${s}s ago`;
+    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+    if (s < 172800) return `${Math.floor(s / 3600)}h ago`;
+    return `${Math.floor(s / 86400)}d ago`;
+  }
+  function tick() {
+    const now = Date.now();
+    for (const el of document.querySelectorAll("time[data-relative]")) {
+      const t = Date.parse(el.getAttribute("datetime"));
+      if (!Number.isNaN(t)) el.textContent = ago(now - t);
+    }
+  }
+  setInterval(tick, 1000);
+
+
+  function initCharts(scope) {
+    for (const plot of scope.querySelectorAll(".chart-plot")) {
+      const data = JSON.parse(plot.closest(".card").querySelector(".chart-data").textContent);
+      const columns = plot.querySelector(".chart-bars");
+      let index = -1;
+
+      function show(i) {
+        index = Math.max(0, Math.min(data.length - 1, i));
+        const b = data[index];
+        let label = "No checks";
+        let level = "none";
+        if (b.v >= 0) { label = formatMs(b.v); level = "line"; }
+        else if (b.f > 0) { label = "All checks failed"; level = "major"; }
+        const lines = [];
+        if (b.n > 0) lines.push(`${b.n} check${b.n === 1 ? "" : "s"}, ${b.f} failed`);
+        showTooltip(plot, { title: b.t, level, label, lines });
+        activeWindow?.classList.remove("active");
+        activeWindow = columns.children[index];
+        activeWindow.classList.add("active");
+        const col = activeWindow.getBoundingClientRect();
+        place(plot.getBoundingClientRect(), col.left + col.width / 2);
+      }
+
+      plot.addEventListener("pointermove", (e) => {
+        const rect = columns.getBoundingClientRect();
+        show(Math.floor(((e.clientX - rect.left) / rect.width) * data.length));
+      });
+      plot.addEventListener("pointerleave", hideTooltip);
+      plot.addEventListener("blur", hideTooltip);
+      plot.addEventListener("focus", () => show(index < 0 ? data.length - 1 : index));
+      plot.addEventListener("keydown", (e) => {
+        const step = { ArrowLeft: -1, ArrowRight: 1, PageUp: -6, PageDown: 6 }[e.key];
+        if (e.key === "Home") show(0);
+        else if (e.key === "End") show(data.length - 1);
+        else if (step) show(index + step);
+        else return;
+        e.preventDefault();
+      });
+    }
+  }
+
+  function formatMs(v) {
+    if (v >= 1000) return `${(v / 1000).toFixed(2)} s avg`;
+    if (v < 10) return `${v.toFixed(1)} ms avg`;
+    return `${Math.round(v)} ms avg`;
+  }
+
+
+  // A link to the JSON without scripts; with them, a toggle for the JSON
+  // already on the page.
+  const jsonToggle = document.getElementById("json-toggle");
+  if (jsonToggle) {
+    const json = document.getElementById(jsonToggle.getAttribute("aria-controls"));
+    const label = jsonToggle.querySelector("span");
+    jsonToggle.setAttribute("role", "button");
+    jsonToggle.setAttribute("aria-expanded", "false");
+    const toggle = (e) => {
+      e.preventDefault();
+      json.hidden = !json.hidden;
+      jsonToggle.setAttribute("aria-expanded", String(!json.hidden));
+      label.textContent = json.hidden ? "View as JSON" : "Hide JSON";
+    };
+    jsonToggle.addEventListener("click", toggle);
+    jsonToggle.addEventListener("keydown", (e) => { if (e.key === " ") toggle(e); });
+  }
+
+
+  initShapes(document);
+  initCharts(document);
+  initRefresh();
+  requestAnimationFrame(frame);
+
+
+  // The old page stays on screen until the new HTML has arrived. A refresh is
+  // skipped while a tooltip is open or focus is inside the page, so neither
+  // pointer nor keyboard users lose their place.
+  let stale = false;
+
+  async function refresh() {
+    if (document.hidden) { stale = true; return; }
+    const focused = document.activeElement;
+    if (anchor || (content.contains(focused) && focused !== content)) return;
+    stale = false;
+    content.setAttribute("aria-busy", "true");
+    try {
+      const res = await fetch(location.href, { cache: "no-store", headers: { Accept: "text/html" } });
+      if (!res.ok) return;
+      const doc = new DOMParser().parseFromString(await res.text(), "text/html");
+      const fresh = doc.getElementById("content");
+      if (!fresh || anchor) return;
+      content.replaceChildren(...fresh.childNodes);
+      initShapes(content);
+      initCharts(content);
+      initRefresh();
+      tick();
+    } catch {
+      /* offline; the next interval retries */
+    } finally {
+      content.removeAttribute("aria-busy");
+    }
+  }
+
+  if (every > 0) {
+    setInterval(() => {
+      cycleStart = performance.now();
+      refresh();
+    }, every);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && stale) refresh(); });
+  }
+})();

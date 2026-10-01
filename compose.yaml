@@ -1,0 +1,45 @@
+# Sante plus throwaway Redis, PostgreSQL and MySQL instances, so every check
+# type in config.example.yaml has a live target, and 90 days of synthetic
+# history so the status page is populated from the start. In production keep
+# only the sante service, drop -seed and mount your own config.
+
+services:
+  sante:
+    build: .
+    image: sante:latest
+    command: ["serve", "-seed"]
+    ports:
+      - "${SANTE_PORT:-8080}:8080"
+    environment:
+      TZ: ${TZ:-Europe/Amsterdam}
+      SANTE_TOKEN: ${SANTE_TOKEN:-sante}
+      SANTE_TITLE: ${SANTE_TITLE:-Sante}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-sante}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sante}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-sante}
+    volumes:
+      - ./config.example.yaml:/etc/sante/config.yaml:ro
+      - sante-data:/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-sante}"]
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: sante
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sante}
+      POSTGRES_DB: sante
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_USER: sante
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-sante}
+      MYSQL_DATABASE: sante
+
+volumes:
+  sante-data:

@@ -1,0 +1,126 @@
+{{define "content"}}
+{{- $m := .Monitor}}
+<div class="page-head">
+  <a class="back-btn" href="/" aria-label="Back to all monitors">{{icon "back"}}</a>
+  <div class="page-head-text">
+    <p class="eyebrow">{{if $m.Group}}{{$m.Group}} · {{end}}{{$m.Type}}</p>
+    <h1 class="page-title">{{$m.Name}}</h1>
+    {{if $m.Description}}<p class="page-desc">{{$m.Description}}</p>{{end}}
+    <code class="target">{{.Target}}</code>
+  </div>
+</div>
+
+<section class="hero hero-sub" data-level="{{$m.State.Level}}">
+  {{template "mshape" (mshape "hero-shape" $m.State.Level.Shapes $m.State.Level.Icon "2600 8 30")}}
+  <div class="hero-text">
+    <h2 class="hero-title">{{$m.State.Label}}</h2>
+    <p class="hero-detail">
+      {{- if $m.State.CheckedAt.IsZero}}{{$m.State.Message}}
+      {{- else}}{{if eq $m.State.Level "major"}}Since {{clock $m.State.ChangedAt}} · {{$m.State.Latency}}{{else}}Response {{$m.State.Latency}}{{end}} · checked <time data-relative datetime="{{iso $m.State.CheckedAt}}">{{ago $m.State.CheckedAt}}</time>{{end -}}
+    </p>
+    {{if eq $m.State.Level "major"}}<code class="hero-message">{{$m.State.Message}}</code>{{end}}
+  </div>
+</section>
+
+<section class="stats" aria-label="Uptime and response time">
+  {{- range .Stats}}
+  <div class="stat">
+    <div class="stat-label">{{.Label}}</div>
+    <div class="stat-value">{{.Value}}</div>
+    <div class="stat-note">{{.Note}}</div>
+  </div>
+  {{- end}}
+</section>
+
+<section class="card">
+  <h2 class="card-title">Last {{template "days" "days"}}</h2>
+  {{template "bars" $m}}
+  <details class="table-view">
+    <summary>Show as table</summary>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Day</th><th scope="col">Status</th><th scope="col">Checks</th><th scope="col">Uptime and response</th></tr></thead>
+        <tbody>
+          {{- range .Days}}
+          <tr><td class="nowrap">{{.Date}}</td><td class="nowrap"><span class="swatch" data-level="{{.Level}}"></span>{{.Level.Label}}</td><td>{{.Summary}}</td><td>{{.Detail}}</td></tr>
+          {{- end}}
+        </tbody>
+      </table>
+    </div>
+  </details>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <h2 class="card-title">Response time</h2>
+    <p class="card-sub">Average of successful checks per 10 minutes, last 24 hours</p>
+  </div>
+  {{if .Chart.Empty}}
+  <p class="empty">No checks in the last 24 hours yet.</p>
+  {{else}}
+  <div class="chart">
+    <div class="chart-y" aria-hidden="true">{{range .Chart.YTicks}}<span style="top: {{.Pos}}%">{{.Label}}</span>{{end}}</div>
+    <div class="chart-plot" tabindex="0" role="img" aria-label="Response time over the last 24 hours, averaging {{.Chart.Average}}. Use the arrow keys to read 10-minute windows.">
+      <div class="chart-grid" aria-hidden="true">{{range .Chart.YTicks}}<span style="top: {{.Pos}}%"></span>{{end}}</div>
+      <div class="chart-bars" aria-hidden="true">
+        {{- range .Chart.Windows}}<span class="win"{{if .Failed}} data-failed{{end}}>{{if .Up}}<span class="win-bar" style="height: {{.Height}}%"></span>{{end}}</span>{{end -}}
+      </div>
+    </div>
+    <div class="chart-x" aria-hidden="true">{{range .Chart.XTicks}}<span style="left: {{.Pos}}%">{{.Label}}</span>{{end}}<span class="chart-now">Now</span></div>
+  </div>
+  <script type="application/json" class="chart-data">{{.Chart.Buckets}}</script>
+  <p class="chart-key"><span class="swatch swatch-band"></span>Window with failed checks</p>
+  {{end}}
+</section>
+
+<section class="card" id="log">
+  <div class="card-head">
+    <h2 class="card-title">Check log</h2>
+    <nav class="seg-group" aria-label="Filter the check log">
+      <a class="seg" href="/monitors/{{$m.ID}}#log"{{if not .FailuresOnly}} aria-current="page"{{end}}>{{icon "check"}}All</a>
+      <a class="seg" href="/monitors/{{$m.ID}}?failures=1#log"{{if .FailuresOnly}} aria-current="page"{{end}}>{{icon "close"}}Failures</a>
+    </nav>
+  </div>
+  {{if .Log}}
+  <table class="rows-table log">
+    <thead><tr><th scope="col">Time</th><th scope="col">Status</th><th scope="col" class="num">Response</th><th scope="col">Message</th></tr></thead>
+    <tbody>
+      {{- range .Log}}
+      <tr>
+        <td class="nowrap">{{clock .At}}</td>
+        <td>{{if .Up}}<span class="status-pill" data-level="ok">{{icon "check"}}Up</span>{{else}}<span class="status-pill" data-level="major">{{icon "close"}}Down</span>{{end}}</td>
+        <td class="num nowrap">{{.Latency}}</td>
+        <td class="msg">{{.Message}}</td>
+      </tr>
+      {{- end}}
+    </tbody>
+  </table>
+  {{if or .NewestURL .OlderURL}}
+  <div class="pager">
+    {{if .NewestURL}}<a class="btn btn-tonal" href="{{.NewestURL}}">{{icon "newest"}}Newest</a>{{end}}
+    {{if .OlderURL}}<a class="btn btn-tonal" href="{{.OlderURL}}">{{icon "older"}}Older</a>{{end}}
+  </div>
+  {{end}}
+  {{else if .FailuresOnly}}
+  <p class="empty-row" data-level="ok">{{template "mshape" (mshape "badge" "sunny" "check-bold" "")}}No failed checks in the last 90 days.</p>
+  {{else}}
+  <p class="empty-row" data-level="none">{{template "mshape" (mshape "badge" "circle" "schedule" "")}}No checks recorded yet.</p>
+  {{end}}
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <h2 class="card-title">Settings</h2>
+    <a class="btn btn-text" href="/health#monitors">All settings</a>
+  </div>
+  <dl class="kv">
+    <div><dt>id</dt><dd>{{$m.ID}}</dd></div>
+    <div><dt>interval</dt><dd>{{.Interval}}</dd></div>
+    <div><dt>timeout</dt><dd>{{.Timeout}}</dd></div>
+    <div><dt>retries</dt><dd>{{.Retries}}</dd></div>
+    {{- range .Options}}
+    <div><dt>{{index . 0}}</dt><dd>{{index . 1}}</dd></div>
+    {{- end}}
+  </dl>
+</section>
+{{end}}

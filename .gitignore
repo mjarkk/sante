@@ -1,0 +1,6 @@
+/sante
+/data/
+*.db
+*.db-shm
+*.db-wal
+/config.yaml

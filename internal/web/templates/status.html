@@ -1,0 +1,63 @@
+{{define "content"}}
+{{- $o := .Overall}}
+<div class="status-page">
+<div class="hero-row">
+  <section class="hero" data-level="{{$o.Level}}">
+    {{template "mshape" (mshape "hero-shape" $o.Level.Shapes $o.Level.Icon "2800 6 40")}}
+    <div class="hero-text">
+      <h1 class="hero-title">{{$o.Headline}}</h1>
+      {{- if or $o.Counts (and $.Authed $o.Incident)}}
+      <div class="hero-actions">
+        {{- range $o.Counts}}
+        <span class="count"><span class="count-n">{{.N}}</span> <span class="count-label">{{.Label}}</span></span>
+        {{- end}}
+        {{- if and $.Authed $o.Incident}}
+        <a class="btn btn-hero" href="/monitors/{{$o.Incident.ID}}">{{$o.IncidentLabel}}{{icon "forward"}}</a>
+        {{- end}}
+      </div>
+      {{- end}}
+    </div>
+  </section>
+  {{- if and .Refresh $o.Incident}}
+  <aside class="refresh" data-level="{{$o.Level}}" aria-hidden="true">
+    <svg class="ring" viewBox="0 0 44 44"><path class="ring-track"/><path class="ring-progress"/></svg>
+    <div class="refresh-box"><span class="refresh-text">Next refresh</span></div>
+  </aside>
+  {{- end}}
+</div>
+
+{{- range .Groups}}
+<section class="group"{{if .Name}} aria-label="{{.Name}}"{{end}}>
+  {{if .Name}}<div class="group-head"><h2 class="group-title">{{.Name}}</h2><span class="pill">{{len .Monitors}}</span></div>{{end}}
+  <ul class="list">
+    {{- range .Monitors}}
+    <li class="item{{if $.Authed}} item-link{{end}}" data-level="{{.State.Level}}">
+      {{- if $.Authed}}
+      <a class="item-head" href="/monitors/{{.ID}}">
+        {{template "item-head" .}}
+        {{icon "chevron"}}
+      </a>
+      {{- else}}
+      <div class="item-head">
+        {{template "item-head" .}}
+      </div>
+      {{- end}}
+      {{template "bars" .}}
+    </li>
+    {{- end}}
+  </ul>
+</section>
+{{- end}}
+{{if .Groups}}{{template "legend" .Legend}}{{end}}
+</div>
+{{end}}
+
+{{define "item-head"}}
+{{template "mshape" (mshape "badge" .State.Level.Badge .State.Level.Icon "")}}
+<span class="item-title">
+  <span class="item-name">{{.Name}}</span>
+  {{if .Description}}<span class="item-desc">{{.Description}}</span>{{end}}
+</span>
+<span class="chip">{{.Type}}</span>
+<span class="item-state">{{.State.Label}}</span>
+{{end}}

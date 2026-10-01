@@ -1,0 +1,37 @@
+{{define "mshape"}}<span class="mshape {{.Class}}"{{if .Motion}} data-shapes="{{.Shapes}}" data-motion="{{.Motion}}"{{end}} aria-hidden="true"><svg class="shape" viewBox="0 0 100 100"><path d="{{.Path}}"/></svg>{{icon .Icon}}</span>{{end}}
+
+{{define "bars"}}
+<div class="bars" role="list" aria-label="Daily uptime of {{.Name}} over the last 90 days">
+{{- range .Bars}}<span class="bar" role="listitem" tabindex="{{if .Today}}0{{else}}-1{{end}}" data-level="{{.Level}}" data-date="{{.Date}}" data-summary="{{.Summary}}" data-detail="{{.Detail}}" aria-label="{{.Date}}: {{.Level.Label}}. {{.Summary}}"></span>{{end -}}
+</div>
+<div class="bars-axis" aria-hidden="true">
+  <span>{{template "days" "days ago"}}</span>
+  <span class="axis-rule"></span>
+  <span class="axis-uptime">{{.Uptime}} uptime</span>
+  <span class="axis-rule"></span>
+  <span>Today</span>
+</div>
+{{end}}
+
+{{define "days"}}<span class="span-90">90 {{.}}</span><span class="span-60">60 {{.}}</span><span class="span-30">30 {{.}}</span>{{end}}
+
+{{define "login-form"}}
+<form class="auth-form" method="post" action="/login">
+  <p class="card-sub">Enter the access token to see the health page and monitor details.</p>
+  <input type="hidden" name="next" value="{{.Next}}">
+  <label class="field">
+    <span class="field-label">Access token</span>
+    <input class="field-input" type="password" name="token" required autocomplete="current-password" autofocus{{if .Failed}} aria-invalid="true" aria-describedby="auth-error"{{end}}>
+  </label>
+  {{if .Failed}}<p class="field-error" id="auth-error" role="alert">That token is not valid.</p>{{end}}
+  <button class="btn btn-filled" type="submit">Authenticate</button>
+</form>
+{{end}}
+
+{{define "legend"}}
+<ul class="legend" aria-label="Legend">
+  {{- range .}}
+  <li><span class="swatch" data-level="{{.Level}}"></span><span class="legend-label">{{.Level.Label}}</span>{{if .Note}} <span class="legend-note">{{.Note}}</span>{{end}}</li>
+  {{- end}}
+</ul>
+{{end}}

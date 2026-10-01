@@ -1,0 +1,8 @@
+.git
+data
+*.db
+*.db-*
+compose.yaml
+Dockerfile
+.dockerignore
+docs

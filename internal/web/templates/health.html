@@ -1,0 +1,90 @@
+{{define "content"}}
+{{- $r := .Report}}
+<div class="page-head page-head-end">
+  <div class="page-head-text">
+    <p class="eyebrow">Sante {{$r.Version}} · {{$r.GoVersion}}</p>
+    <h1 class="page-title page-title-xl">Health</h1>
+  </div>
+  <a class="btn btn-tonal" id="json-toggle" href="/health?format=json" aria-controls="health-json">{{icon "code"}}<span>View as JSON</span></a>
+</div>
+<pre class="json" id="health-json" hidden>{{.JSON}}</pre>
+
+<section class="hero hero-sub hero-health" data-level="{{.Level}}">
+  {{- if eq .Level "ok"}}
+  {{template "mshape" (mshape "hero-shape" "sunny cookie12 flower" .Level.Icon "3200 6 30")}}
+  {{- else}}
+  {{template "mshape" (mshape "hero-shape" .Level.Shapes .Level.Icon "3200 6 30")}}
+  {{- end}}
+  <div class="hero-text">
+    <h2 class="hero-title">{{if eq .Level "ok"}}Healthy{{else}}Unhealthy{{end}}</h2>
+    <p class="hero-detail">Up for {{.Uptime}}, since {{clock $r.StartedAt}}.</p>
+  </div>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Components</h2>
+  <ul class="rows">
+    <li class="row" data-level="{{.DatabaseLevel}}">
+      {{template "mshape" (mshape "badge" .DatabaseLevel.Badge "database" "")}}
+      <span class="item-title">
+        <span class="item-name">Database</span>
+        <span class="item-desc">SQLite at <code>{{$r.Settings.Database}}</code> · {{.Size}}{{with $r.Checks.Database.Error}} · {{.}}{{end}}</span>
+      </span>
+      <span class="state-pill">{{if eq $r.Checks.Database.Status "ok"}}Responding in {{printf "%.1f" $r.Checks.Database.LatencyMS}} ms{{else}}Unavailable{{end}}</span>
+    </li>
+    <li class="row" data-level="{{.SchedulerLevel}}">
+      {{- if eq .SchedulerLevel "ok"}}
+      {{template "mshape" (mshape "badge" "cookie12 flower" "schedule" "2400 12 0")}}
+      {{- else}}
+      {{template "mshape" (mshape "badge" .SchedulerLevel.Badge "schedule" "")}}
+      {{- end}}
+      <span class="item-title">
+        <span class="item-name">Scheduler</span>
+        <span class="item-desc">{{$r.Checks.Scheduler.Monitors}} monitors scheduled{{if not $r.Checks.Scheduler.LastCheckAt.IsZero}} · last result stored <time data-relative datetime="{{iso $r.Checks.Scheduler.LastCheckAt}}">{{ago $r.Checks.Scheduler.LastCheckAt}}</time>{{end}}</span>
+      </span>
+      <span class="state-pill">{{if eq $r.Checks.Scheduler.Status "ok"}}Running{{else}}Stopped{{end}}</span>
+    </li>
+  </ul>
+</section>
+
+<section class="card">
+  <div class="card-head"><h2 class="card-title">Settings</h2><p class="card-sub">Loaded from <code>{{$r.Settings.ConfigFile}}</code> with environment variables expanded and secrets redacted</p></div>
+  <dl class="kv kv-wide">
+    <div><dt>server.listen</dt><dd>{{$r.Settings.Listen}}</dd></div>
+    <div><dt>server.timezone</dt><dd>{{$r.Settings.Timezone}}</dd></div>
+    <div><dt>server.log_level</dt><dd>{{$r.Settings.LogLevel}}</dd></div>
+    <div><dt>storage.path</dt><dd>{{$r.Settings.Database}}</dd></div>
+    <div><dt>retention</dt><dd>{{$r.Settings.RetentionDays}} days</dd></div>
+    <div><dt>ui.title</dt><dd>{{$r.Settings.UI.Title}}</dd></div>
+    <div><dt>ui.refresh</dt><dd>{{$r.Settings.UI.RefreshSeconds}}s</dd></div>
+    <div><dt>defaults.interval</dt><dd>{{$r.Settings.Defaults.Interval}}</dd></div>
+    <div><dt>defaults.timeout</dt><dd>{{$r.Settings.Defaults.Timeout}}</dd></div>
+    <div><dt>defaults.retries</dt><dd>{{$r.Settings.Defaults.Retries}}</dd></div>
+  </dl>
+</section>
+
+<section class="card" id="monitors">
+  <div class="card-head card-head-start"><h2 class="card-title">Monitors</h2><span class="pill">{{len $r.Settings.Monitors}} configured</span></div>
+  {{if $r.Settings.Monitors}}
+  <div class="table-scroll">
+    <table class="rows-table monitors-table">
+      <thead><tr><th scope="col">Monitor</th><th scope="col">Target</th><th scope="col">Interval</th><th scope="col">Timeout</th><th scope="col">Retries</th><th scope="col">Options</th></tr></thead>
+      <tbody>
+        {{- range $r.Settings.Monitors}}
+        <tr>
+          <td><a class="link" href="/monitors/{{.ID}}">{{.Name}}</a><div class="cell-sub"><span class="chip chip-small">{{index $.Types .ID}}</span><code>{{.ID}}</code>{{if .Group}}<span>· {{.Group}}</span>{{end}}</div></td>
+          <td class="target-cell"><code>{{.Target}}</code></td>
+          <td class="nowrap">{{.Interval}}</td>
+          <td class="nowrap">{{.Timeout}}</td>
+          <td>{{.Retries}}</td>
+          <td><div class="opts">{{range .Options}}<span class="opt"><span class="opt-key">{{index . 0}}</span> {{index . 1}}</span>{{end}}</div></td>
+        </tr>
+        {{- end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <p class="empty">No monitors configured.</p>
+  {{end}}
+</section>
+{{end}}

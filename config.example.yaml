@@ -1,0 +1,99 @@
+# Sante configuration.
+#
+# Any value may reference environment variables:
+#   $VAR or ${VAR}        value of VAR (empty, with a warning, when unset)
+#   ${VAR:-default}       default when VAR is unset or empty
+#   ${VAR-default}        default when VAR is unset
+#   ${VAR:?message}       refuse to start when VAR is unset or empty
+#   $$                    a literal $ (for passwords that contain one)
+# Durations take Go syntax (30s, 5m, 1h30m); a bare number means seconds.
+
+server:
+  listen: ${SANTE_LISTEN:-:8080}
+  # Calendar days on the status page follow this zone (IANA name).
+  timezone: ${TZ:-UTC}
+  log_level: ${SANTE_LOG_LEVEL:-info}   # debug logs every check
+  # Required. Unlocks /health and the monitor pages, through the Authenticate
+  # button or an "Authorization: Bearer <token>" header. Generate one with
+  # `openssl rand -hex 32`.
+  auth_token: ${SANTE_TOKEN:?must be set to protect /health and the monitor pages}
+
+storage:
+  path: ${SANTE_DB:-data/sante.db}      # SQLite; results older than 90 days are pruned
+
+ui:
+  title: ${SANTE_TITLE:-Sante}          # header and browser tab
+  refresh: 30s                          # how often open pages update themselves
+
+# Applied to every monitor that does not set its own value.
+defaults:
+  interval: 60s                         # time between checks
+  timeout: 10s                          # capped at the interval
+  retries: 1                            # extra attempts, 1s apart, before a check counts as failed
+
+monitors:
+  # HTTP: healthy when the status matches expect_status (default 200-399)
+  # and, if set, the body contains expect_body.
+  - name: Sante itself
+    group: Platform
+    type: http
+    url: http://127.0.0.1:8080/health?format=json
+    headers:
+      Authorization: Bearer ${SANTE_TOKEN}
+    expect_body: '"status": "ok"'
+    interval: 30s
+
+  - name: Website
+    group: Platform
+    description: Public marketing site
+    type: http
+    url: https://example.com
+    method: GET
+    expect_status: [200]
+    # headers:
+    #   Authorization: Bearer ${API_TOKEN}
+    # body: '{"ping": true}'
+    # follow_redirects: false
+    # tls_skip_verify: true
+
+  # Always down: nothing listens on port 9, so the demo shows an outage.
+  # Remove it from a real config.
+  - name: Payments API
+    group: Platform
+    description: Not deployed in this demo
+    type: http
+    url: http://127.0.0.1:9/health
+
+  # TCP: healthy when a connection can be opened.
+  - name: Postgres port
+    group: Infrastructure
+    type: tcp
+    address: ${POSTGRES_HOST:-postgres}:5432
+    interval: 15s
+    timeout: 3s
+
+  # Redis: healthy when PING succeeds (after AUTH/SELECT when configured).
+  - name: Cache
+    group: Infrastructure
+    type: redis
+    address: ${REDIS_HOST:-redis}:6379
+    password: ${REDIS_PASSWORD}
+    db: 0
+    # username: default
+    # tls: true
+
+  # PostgreSQL: healthy when a connection is established and `query`
+  # (default: a ping) succeeds. Any libpq URL or key=value DSN works.
+  - name: Orders database
+    id: orders-db                       # optional; derived from the name otherwise. History is stored per id.
+    group: Infrastructure
+    type: postgres
+    dsn: postgres://sante:${POSTGRES_PASSWORD:-sante}@${POSTGRES_HOST:-postgres}:5432/sante?sslmode=disable
+    query: SELECT 1
+
+  # MySQL / MariaDB: same as postgres, with a go-sql-driver/mysql DSN.
+  - name: Legacy database
+    group: Infrastructure
+    type: mysql
+    dsn: sante:${MYSQL_PASSWORD:-sante}@tcp(${MYSQL_HOST:-mysql}:3306)/sante
+    interval: 2m
