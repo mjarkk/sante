@@ -11,6 +11,9 @@
         {{- range $o.Counts}}
         <span class="count"><span class="count-n">{{.N}}</span> <span class="count-label">{{.Label}}</span></span>
         {{- end}}
+        {{- with $o.Uptime}}
+        <span class="count" title="Average over the last 90 days"><span class="count-n">{{.}}</span> <span class="count-label">uptime</span></span>
+        {{- end}}
         {{- if and $.Authed $o.Incident}}
         <a class="btn btn-hero" href="/monitors/{{$o.Incident.ID}}">{{$o.IncidentLabel}}{{icon "forward"}}</a>
         {{- end}}

@@ -76,3 +76,53 @@ sante seed -reset    # delete the configured monitors' history, then seed
 You get the same history for a monitor every time you seed it: normal
 latencies, a few outages, and the odd failed check. Real checks take over
 from the moment Sante starts.
+
+## Development
+
+Requires Go 1.27. The tests need no database servers or network access, so
+they run anywhere:
+
+```sh
+go test ./...
+go vet ./...
+gofmt -l .     # lists files that need formatting
+```
+
+### With Docker Compose
+
+```sh
+docker compose watch
+```
+
+This runs the same demo as the quick start: every monitor has a live target
+and the token is `sante`. Compose rebuilds Sante whenever a source file
+changes and restarts it when `config.example.yaml` changes. Edits to test
+files are ignored.
+
+### From source
+
+```sh
+cp config.example.yaml config.yaml
+SANTE_TOKEN=dev SANTE_LOG_LEVEL=debug go run . -seed
+```
+
+Open <http://localhost:8080> and use the token `dev`. Debug logging prints
+every check. The database is `data/sante.db`. Delete `data/` to start over,
+or run `SANTE_TOKEN=dev go run . seed -reset` to regenerate the demo history.
+`config.yaml` and `data/` are both gitignored.
+
+The templates and static files in `internal/web` are embedded in the binary,
+so restart after editing them. You don't need a hard refresh: asset URLs
+change whenever a static file does.
+
+The Infrastructure monitors in the example config point at the Compose
+service names (`postgres`, `redis`, `mysql`), so outside Compose they show as
+down. Set `POSTGRES_HOST`, `REDIS_HOST` and `MYSQL_HOST`, plus the matching
+`*_PASSWORD` variables, to point them at servers you have, or remove them from
+your `config.yaml`.
+
+To stamp a version into a build:
+
+```sh
+go build -ldflags "-X main.version=1.2.3" .
+```

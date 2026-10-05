@@ -165,6 +165,8 @@ type monitorRow struct {
 	State       stateView
 	Uptime      string
 	Bars        []bar
+
+	checks, failures int
 }
 
 type group struct {
@@ -181,6 +183,8 @@ type overall struct {
 	Level    level
 	Headline string
 	Counts   []count
+	// Uptime is empty until a monitor has been checked.
+	Uptime string
 	// Incident is the first monitor that is down, if any.
 	Incident *monitorRow
 	Down     int
@@ -264,6 +268,7 @@ func (s *Server) monitorRow(m config.Monitor, states map[string]store.State, sta
 		checks += d.Checks
 		failures += d.Failures
 	}
+	row.checks, row.failures = checks, failures
 	row.Uptime = formatUptime(checks, failures)
 	row.Bars = make([]bar, len(dates))
 	for i, date := range dates {
@@ -304,8 +309,13 @@ func dayBar(date time.Time, d store.Day) bar {
 
 func summarize(rows []monitorRow) overall {
 	var o overall
-	var up, pending int
+	var up, pending, measured int
+	var ratios float64
 	for i, r := range rows {
+		if r.checks > 0 {
+			ratios += float64(r.checks-r.failures) / float64(r.checks)
+			measured++
+		}
 		switch r.State.Level {
 		case levelOK:
 			up++
@@ -317,6 +327,10 @@ func summarize(rows []monitorRow) overall {
 		default:
 			pending++
 		}
+	}
+	// Averaged per monitor, so one checked every few seconds cannot outweigh the rest.
+	if measured > 0 {
+		o.Uptime = formatRatio(ratios / float64(measured))
 	}
 	for _, c := range []count{{up, "operational"}, {o.Down, "down"}, {pending, "pending"}} {
 		if c.N > 0 {
@@ -568,14 +582,18 @@ func formatUptime(checks, failures int) string {
 	if checks == 0 {
 		return "—"
 	}
-	switch failures {
-	case 0:
+	return formatRatio(float64(checks-failures) / float64(checks))
+}
+
+func formatRatio(up float64) string {
+	switch up {
+	case 1:
 		return "100%"
-	case checks:
+	case 0:
 		return "0%"
 	}
 	// Floor, so a single failure never rounds up to a perfect 100.00%.
-	pct := math.Floor(float64(checks-failures)/float64(checks)*10000) / 100
+	pct := math.Floor(up*10000) / 100
 	return strconv.FormatFloat(pct, 'f', 2, 64) + "%"
 }
 
