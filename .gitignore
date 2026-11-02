@@ -4,3 +4,4 @@
 *.db-shm
 *.db-wal
 /config.yaml
+.DS_Store
