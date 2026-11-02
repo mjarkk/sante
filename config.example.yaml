@@ -53,6 +53,12 @@ monitors:
       Authorization: Bearer ${SANTE_TOKEN}
     expect_body: '"status": "ok"'
     interval: 30s
+    # Sub-monitors are full monitors shown as rows inside their parent's card.
+    # They take its group; a missing id becomes <parent id>-<name slug>.
+    monitors:
+      - name: Status API
+        type: http
+        url: http://127.0.0.1:8080/api/status
 
   - name: Website
     group: Platform

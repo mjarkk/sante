@@ -323,9 +323,9 @@
   window.addEventListener("scroll", () => { if (anchor) hideTooltip(); }, { passive: true });
 
   // The bars sit above the item's link so they keep their tooltips; a click
-  // on them still opens the monitor.
+  // on them still opens the monitor, or the sub-monitor whose row they are in.
   document.addEventListener("click", (e) => {
-    e.target.closest?.(".item-link .bar")?.closest(".item").querySelector("a.item-head").click();
+    e.target.closest?.(".item-link .bar")?.closest(".sub, .item").querySelector("a.sub-head, a.item-head").click();
   });
 
   // One tab stop per bar strip; arrow keys move between visible days.

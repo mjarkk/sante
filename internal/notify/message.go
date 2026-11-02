@@ -38,7 +38,7 @@ type field struct {
 func downMessage(w config.Webhook, title string, m config.Monitor, r store.Result) message {
 	f := formatterFor(w.Type)
 	msg := message{
-		Text:     ":red_circle: " + f.bold(m.Name) + " is down",
+		Text:     ":red_circle: " + f.bold(m.FullName()) + " is down",
 		Channel:  w.Channel,
 		Username: w.Username,
 	}
@@ -53,7 +53,7 @@ func downMessage(w config.Webhook, title string, m config.Monitor, r store.Resul
 		return msg
 	}
 	a := attachment{
-		Fallback: m.Name + " is down: " + reason,
+		Fallback: m.FullName() + " is down: " + reason,
 		Color:    downColor,
 		Text:     f.code(reason),
 		Footer:   f.plain(title),

@@ -140,6 +140,19 @@ type Monitor struct {
 	// mysql, postgres
 	DSN   string `yaml:"dsn"`
 	Query string `yaml:"query"`
+
+	// Sub-monitors. Parse moves them into Config.Monitors, right after their parent.
+	Monitors   []Monitor `yaml:"monitors"`
+	Parent     string    `yaml:"-"`
+	ParentName string    `yaml:"-"`
+}
+
+// FullName is "Parent › Name" for a sub-monitor and Name otherwise.
+func (m Monitor) FullName() string {
+	if m.ParentName == "" {
+		return m.Name
+	}
+	return m.ParentName + " › " + m.Name
 }
 
 // Duration accepts Go duration strings ("90s", "5m") and bare integers as seconds.
@@ -354,21 +367,46 @@ func (c *Config) normalize() error {
 		}
 	}
 
-	ids := map[string]int{}
-	for i := range c.Monitors {
-		m := &c.Monitors[i]
-		if err := m.normalize(c.Defaults); err != nil {
-			label := fmt.Sprintf("monitors[%d]", i)
-			if m.Name != "" {
-				label = fmt.Sprintf("monitors[%d] (%s)", i, m.Name)
-			}
+	flat := make([]Monitor, 0, len(c.Monitors))
+	ids := map[string]string{}
+	add := func(m Monitor, path, idPrefix string) error {
+		label := path
+		if m.Name != "" {
+			label = fmt.Sprintf("%s (%s)", path, m.Name)
+		}
+		if err := m.normalize(c.Defaults, idPrefix); err != nil {
 			return fmt.Errorf("%s: %w", label, err)
 		}
 		if prev, dup := ids[m.ID]; dup {
-			return fmt.Errorf("monitors[%d] (%s): id %q is already used by monitors[%d], set a unique id", i, m.Name, m.ID, prev)
+			return fmt.Errorf("%s: id %q is already used by %s, set a unique id", label, m.ID, prev)
 		}
-		ids[m.ID] = i
+		ids[m.ID] = path
+		flat = append(flat, m)
+		return nil
 	}
+	for i, m := range c.Monitors {
+		path := fmt.Sprintf("monitors[%d]", i)
+		subs := m.Monitors
+		m.Monitors = nil
+		if err := add(m, path, ""); err != nil {
+			return err
+		}
+		parent := flat[len(flat)-1]
+		for j, sub := range subs {
+			subPath := fmt.Sprintf("%s.monitors[%d]", path, j)
+			switch {
+			case sub.Group != "":
+				return fmt.Errorf("%s: group is not allowed, a sub-monitor is listed with its parent", subPath)
+			case len(sub.Monitors) > 0:
+				return fmt.Errorf("%s: monitors is not allowed, sub-monitors cannot have their own", subPath)
+			}
+			sub.Group, sub.Parent, sub.ParentName = parent.Group, parent.ID, parent.Name
+			if err := add(sub, subPath, parent.ID+"-"); err != nil {
+				return err
+			}
+		}
+	}
+	c.Monitors = flat
 
 	if c.Server.AuthToken == "" {
 		return errors.New("server.auth_token: required, it unlocks /health and the monitor pages")
@@ -393,16 +431,18 @@ func (w *Webhook) normalize() error {
 	return nil
 }
 
-func (m *Monitor) normalize(d Defaults) error {
+// idPrefix goes in front of an id derived from the name, never an explicit one.
+func (m *Monitor) normalize(d Defaults, idPrefix string) error {
 	m.Name = strings.TrimSpace(m.Name)
 	if m.Name == "" {
 		return errors.New("name is required")
 	}
 	if m.ID == "" {
-		m.ID = slugify(m.Name)
-		if m.ID == "" {
+		slug := slugify(m.Name)
+		if slug == "" {
 			return errors.New("cannot derive an id from the name, set id explicitly")
 		}
+		m.ID = idPrefix + slug
 	} else if !idPattern.MatchString(m.ID) {
 		return fmt.Errorf("id %q may only contain letters, digits, '.', '_' and '-'", m.ID)
 	}

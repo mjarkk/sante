@@ -50,9 +50,41 @@ Fields every monitor has:
 | `interval`    |          | Overrides `defaults.interval`                                 |
 | `timeout`     |          | Overrides `defaults.timeout`; can't be longer than `interval` |
 | `retries`     |          | Overrides `defaults.retries`                                  |
+| `monitors`    |          | Sub-monitors, see below                                       |
 
 History is stored by `id`, so renaming a monitor that has no `id` starts its
 history over.
+
+### Sub-monitors
+
+A monitor can list other monitors under `monitors`, for checks that belong to
+it, such as a second endpoint of the same app. On the status page each one is
+a compact row inside its parent's card instead of a card of its own. In every
+other way it's a normal monitor, with its own checks, history, page and
+alerts.
+
+```yaml
+- name: App (next)
+  group: App
+  type: http
+  url: https://next.example.com
+  monitors:
+    - name: Matcher
+      type: http
+      url: https://next.example.com/matcher/health
+```
+
+- A sub-monitor takes every monitor field except `group`, which is always its
+  parent's, and `monitors`: they only go one level deep.
+- `interval`, `timeout` and `retries` come from `defaults`, not from the
+  parent.
+- Without an `id`, the parent's id goes in front of the name: `app-next-matcher`
+  here. If you move an existing monitor under a parent, set `id` to its old
+  id to keep its history.
+- The card's colour follows the parent's own check. A sub-monitor that is down
+  turns only its own row red.
+- Alerts, the monitor page and the health page name the parent too: "App
+  (next) › Matcher".
 
 Fields per type:
 

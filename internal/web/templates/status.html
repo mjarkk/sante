@@ -46,6 +46,25 @@
       </div>
       {{- end}}
       {{template "bars" .}}
+      {{- with .Subs}}
+      <ul class="subs">
+        {{- range .}}
+        <li class="sub" data-level="{{.State.Level}}">
+          {{- if $.Authed}}
+          <a class="sub-head" href="/monitors/{{.ID}}">
+            {{template "sub-head" .}}
+            {{icon "chevron"}}
+          </a>
+          {{- else}}
+          <div class="sub-head">
+            {{template "sub-head" .}}
+          </div>
+          {{- end}}
+          {{template "strip" .}}
+        </li>
+        {{- end}}
+      </ul>
+      {{- end}}
     </li>
     {{- end}}
   </ul>
@@ -62,5 +81,13 @@
   {{if .Description}}<span class="item-desc">{{.Description}}</span>{{end}}
 </span>
 <span class="chip">{{.Type}}</span>
+<span class="item-state">{{.State.Label}}</span>
+{{end}}
+
+{{define "sub-head"}}
+{{template "mshape" (mshape "badge" .State.Level.Badge .State.Level.Icon "")}}
+<span class="sub-name">{{.Name}}</span>
+<span class="chip">{{.Type}}</span>
+<span class="sub-uptime">{{.Uptime}}</span>
 <span class="item-state">{{.State.Label}}</span>
 {{end}}

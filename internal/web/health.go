@@ -75,6 +75,7 @@ type monitorSettings struct {
 	ID       string  `json:"id"`
 	Name     string  `json:"name"`
 	Group    string  `json:"group,omitempty"`
+	Parent   string  `json:"parent,omitempty"`
 	Type     string  `json:"type"`
 	Target   string  `json:"target"`
 	Interval string  `json:"interval"`
@@ -151,7 +152,7 @@ func (s *Server) healthReport(ctx context.Context) healthReport {
 	for _, m := range cfg.Monitors {
 		target, opts := check.Describe(m)
 		h.Settings.Monitors = append(h.Settings.Monitors, monitorSettings{
-			ID: m.ID, Name: m.Name, Group: m.Group, Type: string(m.Type), Target: target,
+			ID: m.ID, Name: m.Name, Group: m.Group, Parent: m.Parent, Type: string(m.Type), Target: target,
 			Interval: m.Interval.String(), Timeout: m.Timeout.String(), Retries: *m.Retries, Options: opts,
 		})
 	}
@@ -167,6 +168,7 @@ type healthPage struct {
 	Uptime         string
 	Size           string
 	Types          map[string]string
+	Names          map[string]string
 	JSON           string
 }
 
@@ -187,9 +189,10 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		s.json(w, r, status, report)
 		return
 	}
-	types := map[string]string{}
+	types, names := map[string]string{}, map[string]string{}
 	for _, m := range s.cfg.Monitors {
 		types[m.ID] = m.Type.Label()
+		names[m.ID] = m.FullName()
 	}
 	body, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
@@ -205,6 +208,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		Uptime:         formatDuration(time.Since(s.started)),
 		Size:           formatBytes(report.Checks.Database.SizeBytes),
 		Types:          types,
+		Names:          names,
 		JSON:           string(body),
 	})
 }

@@ -44,6 +44,11 @@ monitors:
     type: tcp
     address: ` + ln.Addr().String() + `
     interval: 1s
+    monitors:
+      - name: Consumer
+        type: tcp
+        address: ` + ln.Addr().String() + `
+        interval: 1s
   - name: Orders DB
     type: postgres
     dsn: postgres://app:hunter2@127.0.0.1:1/orders
@@ -126,13 +131,21 @@ func TestPages(t *testing.T) {
 	if !strings.Contains(body, "<title>Acme Status</title>") || !strings.Contains(body, `<span class="brand-name">Acme Status</span>`) {
 		t.Errorf("status page does not use ui.title:\n%.800s", body)
 	}
-	if strings.Count(body, `class="bar"`) != 2*days {
-		t.Errorf("status page has %d bars, want %d", strings.Count(body, `class="bar"`), 2*days)
+	if strings.Count(body, `class="bar"`) != 3*days {
+		t.Errorf("status page has %d bars, want %d", strings.Count(body, `class="bar"`), 3*days)
+	}
+	card := body[strings.Index(body, "Queue"):strings.Index(body, "Orders DB")]
+	if !strings.Contains(card, `<li class="sub" data-level=`) || !strings.Contains(card, `<span class="sub-name">Consumer</span>`) {
+		t.Errorf("Consumer is not a row inside the Queue card:\n%s", card)
 	}
 
 	resp, body = get(t, ts.URL+"/monitors/queue", "Authorization", bearer)
 	if resp.StatusCode != http.StatusOK || !strings.Contains(body, "Check log") {
 		t.Errorf("monitor page = %d", resp.StatusCode)
+	}
+	resp, body = get(t, ts.URL+"/monitors/queue-consumer", "Authorization", bearer)
+	if !strings.Contains(body, "<title>Queue › Consumer · Acme Status</title>") || !strings.Contains(body, `<a href="/monitors/queue">Queue</a>`) {
+		t.Errorf("sub-monitor page = %d, lacks its parent:\n%.800s", resp.StatusCode, body)
 	}
 	if resp, _ = get(t, ts.URL+"/monitors/nope", "Authorization", bearer); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("unknown monitor = %d, want 404", resp.StatusCode)
@@ -149,7 +162,7 @@ func TestPages(t *testing.T) {
 	if err := json.Unmarshal([]byte(body), &report); err != nil {
 		t.Fatal(err)
 	}
-	if report.Status != "ok" || len(report.Settings.Monitors) != 2 {
+	if report.Status != "ok" || len(report.Settings.Monitors) != 3 {
 		t.Errorf("report = %+v", report)
 	}
 	if strings.Contains(body, "hunter2") || strings.Contains(body, "hookSecret") {
@@ -170,6 +183,9 @@ func TestPages(t *testing.T) {
 	resp, body = get(t, ts.URL+"/api/status")
 	if resp.StatusCode != http.StatusOK || !strings.Contains(body, `"id": "orders-db"`) {
 		t.Errorf("api status = %d: %.300s", resp.StatusCode, body)
+	}
+	if !strings.Contains(body, `"parent": "queue"`) {
+		t.Errorf("api status does not name the sub-monitor's parent: %.600s", body)
 	}
 }
 

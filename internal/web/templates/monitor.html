@@ -3,7 +3,7 @@
 <div class="page-head">
   <a class="back-btn" href="/" aria-label="Back to all monitors">{{icon "back"}}</a>
   <div class="page-head-text">
-    <p class="eyebrow">{{if $m.Group}}{{$m.Group}} · {{end}}{{$m.Type}}</p>
+    <p class="eyebrow">{{if $m.Group}}{{$m.Group}} · {{end}}{{if $m.Parent}}<a href="/monitors/{{$m.Parent}}">{{.ParentName}}</a> · {{end}}{{$m.Type}}</p>
     <h1 class="page-title">{{$m.Name}}</h1>
     {{if $m.Description}}<p class="page-desc">{{$m.Description}}</p>{{end}}
     <code class="target">{{.Target}}</code>

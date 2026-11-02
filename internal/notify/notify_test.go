@@ -31,6 +31,10 @@ monitors:
     group: Platform & Co
     type: tcp
     address: payments:443
+    monitors:
+      - name: Refunds
+        type: tcp
+        address: refunds:443
 `))
 	if err != nil {
 		t.Fatal(err)
@@ -55,9 +59,11 @@ func TestDownMessage(t *testing.T) {
 	m := cfg.Monitors[0]
 	slack := downMessage(cfg.Notifications.Webhooks[0], cfg.UI.Title, m, downResult)
 	mattermost := downMessage(cfg.Notifications.Webhooks[1], cfg.UI.Title, m, downResult)
+	sub := downMessage(cfg.Notifications.Webhooks[0], cfg.UI.Title, cfg.Monitors[1], downResult)
 
 	tests := []struct{ name, got, want string }{
 		{"slack text", slack.Text, ":red_circle: *Payments [API]* is down"},
+		{"slack sub-monitor text", sub.Text, ":red_circle: *Payments [API] › Refunds* is down"},
 		{"slack reason", slack.Attachments[0].Text, "`unexpected status 503 &lt;!channel&gt; &amp; 'x' more`"},
 		{"slack group", slack.Attachments[0].Fields[0].Value, "Platform &amp; Co"},
 		{"slack footer", slack.Attachments[0].Footer, "Acme &lt;Status&gt;"},

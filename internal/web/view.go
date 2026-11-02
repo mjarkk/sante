@@ -159,12 +159,16 @@ type stateView struct {
 type monitorRow struct {
 	ID          string
 	Name        string
+	FullName    string
+	Parent      string
 	Description string
 	Group       string
 	Type        string
 	State       stateView
 	Uptime      string
 	Bars        []bar
+	// Subs is filled only for the status page's cards.
+	Subs []monitorRow
 
 	checks, failures int
 }
@@ -192,7 +196,7 @@ type overall struct {
 
 func (o overall) IncidentLabel() string {
 	if o.Down == 1 {
-		return "View " + o.Incident.Name
+		return "View " + o.Incident.FullName
 	}
 	return "View first incident"
 }
@@ -216,6 +220,13 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		Legend:  legend,
 	}
 	for _, row := range rows {
+		if row.Parent != "" {
+			// monitorRows keeps each sub-monitor right after its parent.
+			g := &page.Groups[len(page.Groups)-1]
+			parent := &g.Monitors[len(g.Monitors)-1]
+			parent.Subs = append(parent.Subs, row)
+			continue
+		}
 		if len(page.Groups) == 0 || page.Groups[len(page.Groups)-1].Name != row.Group {
 			page.Groups = append(page.Groups, group{Name: row.Group})
 		}
@@ -256,6 +267,8 @@ func (s *Server) monitorRow(m config.Monitor, states map[string]store.State, sta
 	row := monitorRow{
 		ID:          m.ID,
 		Name:        m.Name,
+		FullName:    m.FullName(),
+		Parent:      m.Parent,
 		Description: m.Description,
 		Group:       m.Group,
 		Type:        m.Type.Label(),
@@ -379,6 +392,7 @@ type logRow struct {
 type monitorPage struct {
 	layout
 	Monitor      monitorRow
+	ParentName   string
 	Days         []bar
 	Target       string
 	Interval     string
@@ -426,15 +440,16 @@ func (s *Server) handleMonitor(w http.ResponseWriter, r *http.Request) {
 
 	target, options := check.Describe(m)
 	page := monitorPage{
-		layout:   s.layout(r, m.Name, "status", true),
-		Monitor:  row,
-		Days:     newestFirst(row.Bars),
-		Target:   target,
-		Interval: m.Interval.String(),
-		Timeout:  m.Timeout.String(),
-		Retries:  *m.Retries,
-		Options:  options,
-		Legend:   legend,
+		layout:     s.layout(r, m.FullName(), "status", true),
+		Monitor:    row,
+		ParentName: m.ParentName,
+		Days:       newestFirst(row.Bars),
+		Target:     target,
+		Interval:   m.Interval.String(),
+		Timeout:    m.Timeout.String(),
+		Retries:    *m.Retries,
+		Options:    options,
+		Legend:     legend,
 	}
 
 	windows := []struct {
@@ -529,6 +544,7 @@ type apiMonitor struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
 	Group     string    `json:"group,omitempty"`
+	Parent    string    `json:"parent,omitempty"`
 	Type      string    `json:"type"`
 	Status    string    `json:"status"`
 	CheckedAt time.Time `json:"checked_at,omitzero"`
@@ -560,7 +576,7 @@ func (s *Server) handleAPIStatus(w http.ResponseWriter, r *http.Request) {
 	}{Status: ov.Level, Summary: ov.Headline, Monitors: []apiMonitor{}}
 	for _, row := range rows {
 		am := apiMonitor{
-			ID: row.ID, Name: row.Name, Group: row.Group, Type: row.Type,
+			ID: row.ID, Name: row.Name, Group: row.Group, Parent: row.Parent, Type: row.Type,
 			Status:    map[level]string{levelOK: "up", levelMajor: "down"}[row.State.Level],
 			CheckedAt: row.State.CheckedAt, ChangedAt: row.State.ChangedAt,
 			Uptime90d: row.Uptime,

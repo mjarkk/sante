@@ -145,7 +145,50 @@ monitors:
 	}
 }
 
+func TestSubMonitors(t *testing.T) {
+	cfg, _, err := Parse([]byte(`
+server:
+  auth_token: s3cret
+monitors:
+  - name: App (next)
+    group: App
+    type: tcp
+    address: app:80
+    monitors:
+      - name: Matcher
+        type: tcp
+        address: matcher:80
+      - name: Scraper
+        id: scraper-next
+        type: tcp
+        address: scraper:80
+  - name: Cache
+    type: tcp
+    address: cache:6379
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, m := range cfg.Monitors {
+		got = append(got, strings.Join([]string{m.ID, m.Group, m.Parent, m.FullName()}, " | "))
+		if len(m.Monitors) > 0 {
+			t.Errorf("%s still lists its sub-monitors", m.ID)
+		}
+	}
+	want := []string{
+		"app-next | App |  | App (next)",
+		"app-next-matcher | App | app-next | App (next) › Matcher",
+		"scraper-next | App | app-next | App (next) › Scraper",
+		"cache |  |  | Cache",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("monitors =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
 func TestParseErrors(t *testing.T) {
+	const parent = "monitors:\n  - name: a\n    type: tcp\n    address: x:1\n    monitors:\n      - name: b\n        type: tcp\n"
 	tests := map[string]string{
 		"monitors:\n  - name: a\n    type: tcp\n    address: x:1\n    intervall: 5s\n":                            `line 5: unknown field "intervall"`,
 		"monitors:\n  - name: a\n    type: ftp\n":                                                                 `unknown type "ftp"`,
@@ -160,6 +203,10 @@ func TestParseErrors(t *testing.T) {
 		"notifications:\n  webhooks:\n    - type: teams\n      url: https://example.com/x\n":                      `unknown type "teams"`,
 		"notifications:\n  webhooks:\n    - type: slack\n      url: ${SANTE_TEST_UNSET_HOOK}\n":                   `url must be an absolute`,
 		"notifications:\n  webhook:\n    - type: slack\n":                                                         `line 2: unknown field "webhook"`,
+		parent + "        address: nope\n":                                                                        `monitors[0].monitors[0] (b): address must be host:port`,
+		parent + "        address: x:2\n        group: g\n":                                                       `monitors[0].monitors[0]: group is not allowed`,
+		parent + "        address: x:2\n        id: a\n":                                                          `id "a" is already used by monitors[0]`,
+		parent + "        address: x:2\n        monitors:\n          - name: c\n":                                 `sub-monitors cannot have their own`,
 	}
 	for in, want := range tests {
 		_, _, err := Parse([]byte(in))

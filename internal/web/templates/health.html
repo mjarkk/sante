@@ -77,7 +77,7 @@
       <tbody>
         {{- range $r.Settings.Monitors}}
         <tr>
-          <td><a class="link" href="/monitors/{{.ID}}">{{.Name}}</a><div class="cell-sub"><span class="chip chip-small">{{index $.Types .ID}}</span><code>{{.ID}}</code>{{if .Group}}<span>· {{.Group}}</span>{{end}}</div></td>
+          <td><a class="link" href="/monitors/{{.ID}}">{{index $.Names .ID}}</a><div class="cell-sub"><span class="chip chip-small">{{index $.Types .ID}}</span><code>{{.ID}}</code>{{if .Group}}<span>· {{.Group}}</span>{{end}}</div></td>
           <td class="target-cell"><code>{{.Target}}</code></td>
           <td class="nowrap">{{.Interval}}</td>
           <td class="nowrap">{{.Timeout}}</td>
