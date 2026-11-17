@@ -399,6 +399,7 @@ type monitorPage struct {
 	Timeout      string
 	Retries      int
 	Options      [][2]string
+	Endpoint     *endpointView
 	Stats        []stat
 	Chart        chart
 	Log          []logRow
@@ -446,10 +447,13 @@ func (s *Server) handleMonitor(w http.ResponseWriter, r *http.Request) {
 		Days:       newestFirst(row.Bars),
 		Target:     target,
 		Interval:   m.Interval.String(),
-		Timeout:    m.Timeout.String(),
+		Timeout:    optional(m.Timeout),
 		Retries:    *m.Retries,
 		Options:    options,
 		Legend:     legend,
+	}
+	if m.Type == config.HealthEndpoint {
+		page.Endpoint = &endpointView{Method: m.Method, URL: endpointURL(r, m.Token), Interval: m.Interval.String()}
 	}
 
 	windows := []struct {
@@ -517,6 +521,14 @@ func (s *Server) handleMonitor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.render(w, r, http.StatusOK, "monitor", page)
+}
+
+// optional is empty for a setting that does not apply to the monitor's type.
+func optional(d config.Duration) string {
+	if d == 0 {
+		return ""
+	}
+	return d.String()
 }
 
 func newestFirst(bars []bar) []bar {

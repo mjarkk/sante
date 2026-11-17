@@ -28,6 +28,9 @@ const (
 	Redis    Type = "redis"
 	MySQL    Type = "mysql"
 	Postgres Type = "postgres"
+	// HealthEndpoint is checked by the monitored service calling Sante, not
+	// the other way around.
+	HealthEndpoint Type = "health_endpoint"
 )
 
 func (t Type) Label() string {
@@ -42,6 +45,8 @@ func (t Type) Label() string {
 		return "MySQL"
 	case Postgres:
 		return "PostgreSQL"
+	case HealthEndpoint:
+		return "Health endpoint"
 	}
 	return string(t)
 }
@@ -115,7 +120,7 @@ type Monitor struct {
 	Description string   `yaml:"description"`
 	Type        Type     `yaml:"type"`
 	Interval    Duration `yaml:"interval"`
-	Timeout     Duration `yaml:"timeout"`
+	Timeout     Duration `yaml:"timeout"` // zero for health_endpoint, whose check waits on nothing
 	Retries     *int     `yaml:"retries"`
 
 	// http
@@ -140,6 +145,9 @@ type Monitor struct {
 	// mysql, postgres
 	DSN   string `yaml:"dsn"`
 	Query string `yaml:"query"`
+
+	// health_endpoint, which also uses Method
+	Token string `yaml:"token"`
 
 	// Sub-monitors. Parse moves them into Config.Monitors, right after their parent.
 	Monitors   []Monitor `yaml:"monitors"`
@@ -306,7 +314,11 @@ func unknownFields(n *yaml.Node, t reflect.Type) error {
 	return nil
 }
 
-var idPattern = regexp.MustCompile(`^[\p{L}\p{N}][\p{L}\p{N}._-]*$`)
+var (
+	idPattern = regexp.MustCompile(`^[\p{L}\p{N}][\p{L}\p{N}._-]*$`)
+	// URL-unreserved characters, so the token goes into the endpoint URL as is.
+	tokenPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._~-]*$`)
+)
 
 func (c *Config) normalize() error {
 	if c.Server.Listen == "" {
@@ -368,7 +380,7 @@ func (c *Config) normalize() error {
 	}
 
 	flat := make([]Monitor, 0, len(c.Monitors))
-	ids := map[string]string{}
+	ids, tokens := map[string]string{}, map[string]string{}
 	add := func(m Monitor, path, idPrefix string) error {
 		label := path
 		if m.Name != "" {
@@ -381,6 +393,13 @@ func (c *Config) normalize() error {
 			return fmt.Errorf("%s: id %q is already used by %s, set a unique id", label, m.ID, prev)
 		}
 		ids[m.ID] = path
+		if m.Type == HealthEndpoint {
+			// The endpoint finds its monitor by token alone.
+			if prev, dup := tokens[m.Token]; dup {
+				return fmt.Errorf("%s: token is already used by %s, set a unique token", label, prev)
+			}
+			tokens[m.Token] = path
+		}
 		flat = append(flat, m)
 		return nil
 	}
@@ -447,6 +466,11 @@ func (m *Monitor) normalize(d Defaults, idPrefix string) error {
 		return fmt.Errorf("id %q may only contain letters, digits, '.', '_' and '-'", m.ID)
 	}
 
+	m.Type = Type(strings.ToLower(string(m.Type)))
+	if m.Type == "postgresql" {
+		m.Type = Postgres
+	}
+
 	if m.Interval == 0 {
 		m.Interval = d.Interval
 	}
@@ -454,6 +478,10 @@ func (m *Monitor) normalize(d Defaults, idPrefix string) error {
 		return errors.New("interval must be at least 1s")
 	}
 	switch {
+	case m.Type == HealthEndpoint:
+		if m.Timeout != 0 {
+			return errors.New("timeout does not apply, set interval to the longest allowed gap between calls")
+		}
 	case m.Timeout == 0:
 		m.Timeout = min(d.Timeout, m.Interval)
 	case m.Timeout < 0:
@@ -468,10 +496,6 @@ func (m *Monitor) normalize(d Defaults, idPrefix string) error {
 		return errors.New("retries must not be negative")
 	}
 
-	m.Type = Type(strings.ToLower(string(m.Type)))
-	if m.Type == "postgresql" {
-		m.Type = Postgres
-	}
 	switch m.Type {
 	case HTTP:
 		u, err := url.Parse(m.URL)
@@ -501,10 +525,22 @@ func (m *Monitor) normalize(d Defaults, idPrefix string) error {
 		if m.DSN == "" {
 			return errors.New("dsn is required")
 		}
+	case HealthEndpoint:
+		if !tokenPattern.MatchString(m.Token) {
+			return errors.New("token is required and may only contain letters, digits, '.', '_', '~' and '-'")
+		}
+		m.Method = strings.ToUpper(m.Method)
+		switch m.Method {
+		case "":
+			m.Method = "GET"
+		case "GET", "POST":
+		default:
+			return fmt.Errorf("method %q is not GET or POST", m.Method)
+		}
 	case "":
-		return errors.New("type is required (http, tcp, redis, mysql or postgres)")
+		return errors.New("type is required (http, tcp, redis, mysql, postgres or health_endpoint)")
 	default:
-		return fmt.Errorf("unknown type %q (want http, tcp, redis, mysql or postgres)", m.Type)
+		return fmt.Errorf("unknown type %q (want http, tcp, redis, mysql, postgres or health_endpoint)", m.Type)
 	}
 	return nil
 }

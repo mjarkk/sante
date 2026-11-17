@@ -2,11 +2,13 @@ package check
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/back-to-code/sante/internal/config"
@@ -107,4 +109,28 @@ func TestDescribeRedacts(t *testing.T) {
 			t.Errorf("redis password not redacted: %v", opts)
 		}
 	}
+}
+
+func TestHealthEndpoint(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		c, err := New(monitor(t, "  - name: Backup\n    type: health_endpoint\n    token: t0k\n    interval: 1m\n"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		h := c.(*HealthEndpoint)
+		time.Sleep(24 * time.Hour)
+		if _, err := h.Check(t.Context()); !errors.Is(err, ErrPending) {
+			t.Errorf("never called = %v, want ErrPending", err)
+		}
+
+		h.RecordCall()
+		time.Sleep(time.Minute)
+		if msg, err := h.Check(t.Context()); err != nil || msg != "last call 1m0s ago" {
+			t.Errorf("called within interval = %q, %v", msg, err)
+		}
+		time.Sleep(time.Second)
+		if _, err := h.Check(t.Context()); err == nil || err.Error() != "last call 1m1s ago, expected every 1m0s" {
+			t.Errorf("call overdue = %v", err)
+		}
+	})
 }

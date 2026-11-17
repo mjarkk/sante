@@ -949,6 +949,8 @@ a.sub-head:focus-visible { outline: none; }
   font-variation-settings: "wdth" 112;
 }
 .card-sub { flex-basis: 100%; margin: 0; color: var(--on-var); font-size: 0.844rem; line-height: 1.4; }
+.endpoint { display: flex; flex-wrap: wrap; align-items: center; gap: 0.563rem; margin: 0; }
+.endpoint code { padding: 0.338rem 0.675rem; border-radius: 0.563rem; background: var(--surface-high); font-size: 0.844rem; word-break: break-all; }
 .empty { margin: 0; color: var(--on-var); }
 
 .empty-row {

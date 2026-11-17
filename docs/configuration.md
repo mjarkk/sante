@@ -40,17 +40,17 @@ Durations look like `30s`, `5m` or `1h30m`. A bare number means seconds.
 
 Fields every monitor has:
 
-| Key           | Required | Meaning                                                       |
-| ------------- | -------- | ------------------------------------------------------------- |
-| `name`        | yes      | Display name                                                  |
-| `type`        | yes      | `http`, `tcp`, `redis`, `mysql` or `postgres`                 |
-| `id`          |          | Key for its history and URL; defaults to a slug of `name`     |
-| `group`       |          | Monitors with the same group are listed together              |
-| `description` |          | Subtitle on the status and monitor pages                      |
-| `interval`    |          | Overrides `defaults.interval`                                 |
-| `timeout`     |          | Overrides `defaults.timeout`; can't be longer than `interval` |
-| `retries`     |          | Overrides `defaults.retries`                                  |
-| `monitors`    |          | Sub-monitors, see below                                       |
+| Key           | Required | Meaning                                                          |
+| ------------- | -------- | ---------------------------------------------------------------- |
+| `name`        | yes      | Display name                                                     |
+| `type`        | yes      | `http`, `tcp`, `redis`, `mysql`, `postgres` or `health_endpoint` |
+| `id`          |          | Key for its history and URL; defaults to a slug of `name`        |
+| `group`       |          | Monitors with the same group are listed together                 |
+| `description` |          | Subtitle on the status and monitor pages                         |
+| `interval`    |          | Overrides `defaults.interval`                                    |
+| `timeout`     |          | Overrides `defaults.timeout`; can't be longer than `interval`    |
+| `retries`     |          | Overrides `defaults.retries`                                     |
+| `monitors`    |          | Sub-monitors, see below                                          |
 
 History is stored by `id`, so renaming a monitor that has no `id` starts its
 history over.
@@ -88,15 +88,49 @@ alerts.
 
 Fields per type:
 
-| Type       | Fields                                                                                                                           | Healthy when                                           |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `http`     | `url`, `method` (GET), `headers`, `body`, `expect_status` (200–399), `expect_body`, `follow_redirects` (true), `tls_skip_verify` | the status matches and the body contains `expect_body` |
-| `tcp`      | `address` (`host:port`)                                                                                                          | a connection opens                                     |
-| `redis`    | `address`, `username`, `password`, `db`, `tls`                                                                                   | `PING` succeeds                                        |
-| `mysql`    | `dsn` ([go-sql-driver format](https://github.com/go-sql-driver/mysql#dsn-data-source-name)), `query`                             | it connects and `query` (default: ping) succeeds       |
-| `postgres` | `dsn` (URL or `key=value`), `query`                                                                                              | it connects and `query` (default: ping) succeeds       |
+| Type              | Fields                                                                                                                           | Healthy when                                           |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `http`            | `url`, `method` (GET), `headers`, `body`, `expect_status` (200–399), `expect_body`, `follow_redirects` (true), `tls_skip_verify` | the status matches and the body contains `expect_body` |
+| `tcp`             | `address` (`host:port`)                                                                                                          | a connection opens                                     |
+| `redis`           | `address`, `username`, `password`, `db`, `tls`                                                                                   | `PING` succeeds                                        |
+| `mysql`           | `dsn` ([go-sql-driver format](https://github.com/go-sql-driver/mysql#dsn-data-source-name)), `query`                             | it connects and `query` (default: ping) succeeds       |
+| `postgres`        | `dsn` (URL or `key=value`), `query`                                                                                              | it connects and `query` (default: ping) succeeds       |
+| `health_endpoint` | `token`, `method` (GET or POST, default GET)                                                                                     | the service called within the last `interval`          |
 
 Every check opens a new connection. Nothing is pooled.
+
+### Health endpoints
+
+A `health_endpoint` monitor works the other way round: your service or cron
+job calls Sante, and the monitor goes down when the calls stop. Until the
+first call it stays pending and never fails.
+
+```yaml
+- name: Nightly backup
+  type: health_endpoint
+  token: ${BACKUP_TOKEN}   # openssl rand -hex 32
+  method: POST             # GET (default) or POST
+  interval: 25h            # longest allowed gap between calls
+```
+
+The monitor's page shows the URL to call, `https://<sante host>/api/push/<token>`.
+Only signed-in users can open that page. The health page and `sante validate`
+hide the token. A request with the configured method counts as a call, and
+its body is ignored. Other methods get `405`, unknown tokens `404`.
+
+- After the first call, the monitor is down once the last call is more than
+  `interval` ago. Set `interval` a little longer than how often the service
+  calls, so a call that is slightly late doesn't count as missed. Sante
+  checks every `interval`, so it can take up to one more `interval` to show.
+- `timeout` isn't allowed, because `interval` already sets how late a call
+  may be.
+- The token is the only thing that authenticates a call, so make it long and
+  random. Each monitor needs its own. Allowed characters are letters, digits,
+  `.`, `_`, `~` and `-`.
+- Sante keeps calls in memory, so a restart starts over: the monitor keeps
+  its last state, unchecked, until the next call comes in.
+- The URL uses the host you opened the page on. If the service reaches Sante
+  at another address, use that host instead.
 
 ## Notifications
 

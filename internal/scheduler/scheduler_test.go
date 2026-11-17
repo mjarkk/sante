@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/back-to-code/sante/internal/check"
 	"github.com/back-to-code/sante/internal/config"
 	"github.com/back-to-code/sante/internal/store"
 )
@@ -75,5 +76,45 @@ func TestNotifiesWhenMonitorGoesDown(t *testing.T) {
 
 	if want := []string{"flapping", "flapping"}; !slices.Equal(notifier.down, want) {
 		t.Errorf("notified for %v, want %v: once for the first failed check, once after recovering", notifier.down, want)
+	}
+}
+
+type pending struct{ calls atomic.Int32 }
+
+func (p *pending) Check(context.Context) (string, error) {
+	p.calls.Add(1)
+	return "", check.ErrPending
+}
+
+func TestPendingIsNotRecorded(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "sante.db"), time.UTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	m := config.Monitor{ID: "heartbeat", Name: "heartbeat", Interval: config.Duration(5 * time.Millisecond), Timeout: config.Duration(time.Second), Retries: new(2)}
+	checker := &pending{}
+	notifier := &recorder{}
+	sched := New(st, []Job{{m, checker}}, notifier, slog.New(slog.DiscardHandler))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		sched.Run(ctx)
+		close(done)
+	}()
+	deadline := time.Now().Add(10 * time.Second)
+	for checker.calls.Load() < 3 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	cancel()
+	<-done
+
+	if has, err := st.HasResults(t.Context()); err != nil || has {
+		t.Errorf("pending checks stored results: %v, %v", has, err)
+	}
+	if len(notifier.down) > 0 {
+		t.Errorf("pending checks notified: %v", notifier.down)
 	}
 }

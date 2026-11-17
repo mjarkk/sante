@@ -1,7 +1,8 @@
 # Sante
 
 A self-hosted uptime monitor for HTTP endpoints, TCP ports, Redis, MySQL and
-PostgreSQL. You configure it with one YAML file. It keeps 90 days of results
+PostgreSQL, and for services and jobs that call in to a health endpoint. You
+configure it with one YAML file. It keeps 90 days of results
 in SQLite, shows them on a status page, and sends down alerts to Slack or
 Mattermost.
 

@@ -93,10 +93,14 @@ func (s *Server) setSession(w http.ResponseWriter, r *http.Request, value string
 		Path:     "/",
 		MaxAge:   maxAge,
 		HttpOnly: true,
-		Secure:   r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
+		Secure:   isHTTPS(r),
 		// Lax, not Strict, so a shared link to a monitor page opens signed in.
 		SameSite: http.SameSiteLaxMode,
 	})
+}
+
+func isHTTPS(r *http.Request) bool {
+	return r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
 }
 
 // Browsers treat "//host" and "/\host" as other origins.

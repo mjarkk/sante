@@ -79,7 +79,7 @@ type monitorSettings struct {
 	Type     string  `json:"type"`
 	Target   string  `json:"target"`
 	Interval string  `json:"interval"`
-	Timeout  string  `json:"timeout"`
+	Timeout  string  `json:"timeout,omitempty"`
 	Retries  int     `json:"retries"`
 	Options  options `json:"options"`
 }
@@ -153,7 +153,7 @@ func (s *Server) healthReport(ctx context.Context) healthReport {
 		target, opts := check.Describe(m)
 		h.Settings.Monitors = append(h.Settings.Monitors, monitorSettings{
 			ID: m.ID, Name: m.Name, Group: m.Group, Parent: m.Parent, Type: string(m.Type), Target: target,
-			Interval: m.Interval.String(), Timeout: m.Timeout.String(), Retries: *m.Retries, Options: opts,
+			Interval: m.Interval.String(), Timeout: optional(m.Timeout), Retries: *m.Retries, Options: opts,
 		})
 	}
 	return h

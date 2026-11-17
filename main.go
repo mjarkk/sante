@@ -242,10 +242,10 @@ func validate(path string) error {
 	fmt.Printf("%s is valid: %d monitors, listening on %s, timezone %s\n", path, len(cfg.Monitors), cfg.Server.Listen, cfg.Location)
 	for _, m := range cfg.Monitors {
 		target, _ := check.Describe(m)
-		fmt.Printf("  %-24s %-10s every %-6s %s\n", m.ID, m.Type.Label(), m.Interval, target)
+		fmt.Printf("  %-24s %-15s every %-6s %s\n", m.ID, m.Type.Label(), m.Interval, target)
 	}
 	for _, w := range cfg.Notifications.Webhooks {
-		fmt.Printf("  %-24s %-10s %s\n", "notify", w.Type.Label(), strings.TrimSpace(notify.RedactURL(w.URL)+" "+w.Channel))
+		fmt.Printf("  %-24s %-15s %s\n", "notify", w.Type.Label(), strings.TrimSpace(notify.RedactURL(w.URL)+" "+w.Channel))
 	}
 	return nil
 }

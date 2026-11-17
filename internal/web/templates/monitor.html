@@ -22,6 +22,16 @@
   </div>
 </section>
 
+{{with .Endpoint}}
+<section class="card">
+  <div class="card-head">
+    <h2 class="card-title">Endpoint</h2>
+    <p class="card-sub">Have the service call this at least every {{.Interval}}. A longer gap between calls marks the monitor down.</p>
+  </div>
+  <p class="endpoint"><span class="chip">{{.Method}}</span><code>{{.URL}}</code></p>
+</section>
+{{end}}
+
 <section class="stats" aria-label="Uptime and response time">
   {{- range .Stats}}
   <div class="stat">
@@ -116,7 +126,9 @@
   <dl class="kv">
     <div><dt>id</dt><dd>{{$m.ID}}</dd></div>
     <div><dt>interval</dt><dd>{{.Interval}}</dd></div>
-    <div><dt>timeout</dt><dd>{{.Timeout}}</dd></div>
+    {{- with .Timeout}}
+    <div><dt>timeout</dt><dd>{{.}}</dd></div>
+    {{- end}}
     <div><dt>retries</dt><dd>{{.Retries}}</dd></div>
     {{- range .Options}}
     <div><dt>{{index . 0}}</dt><dd>{{index . 1}}</dd></div>

@@ -187,26 +187,57 @@ monitors:
 	}
 }
 
+func TestHealthEndpoint(t *testing.T) {
+	cfg, _, err := Parse([]byte(`
+server:
+  auth_token: s3cret
+monitors:
+  - name: Nightly backup
+    type: health_endpoint
+    token: abc-123
+    interval: 24h
+  - name: Worker
+    type: health_endpoint
+    token: def-456
+    method: post
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	backup, worker := cfg.Monitors[0], cfg.Monitors[1]
+	if backup.Method != "GET" || backup.Token != "abc-123" || backup.Interval.Std() != 24*time.Hour || backup.Timeout != 0 || backup.Type.Label() != "Health endpoint" {
+		t.Errorf("backup = %+v", backup)
+	}
+	if worker.Method != "POST" {
+		t.Errorf("worker method = %q, want POST", worker.Method)
+	}
+}
+
 func TestParseErrors(t *testing.T) {
 	const parent = "monitors:\n  - name: a\n    type: tcp\n    address: x:1\n    monitors:\n      - name: b\n        type: tcp\n"
 	tests := map[string]string{
-		"monitors:\n  - name: a\n    type: tcp\n    address: x:1\n    intervall: 5s\n":                            `line 5: unknown field "intervall"`,
-		"monitors:\n  - name: a\n    type: ftp\n":                                                                 `unknown type "ftp"`,
-		"monitors:\n  - name: a\n    type: tcp\n    address: nope\n":                                              `address must be host:port`,
-		"monitors:\n  - name: a\n    type: http\n    url: example.com\n":                                          `absolute http`,
-		"monitors:\n  - name: a\n    type: tcp\n    address: x:1\n  - name: A\n    type: tcp\n    address: x:2\n": `id "a" is already used`,
-		"monitors:\n  - name: a\n    type: tcp\n    address: x:1\n    interval: 5s\n    timeout: 10s\n":           `timeout 10s is longer than interval 5s`,
-		"server:\n  listen: ${PORT:?is needed}\n":                                                                 `line 2: environment variable PORT is needed`,
-		"defaults:\n  interval: soon\n":                                                                           `invalid duration "soon"`,
-		"monitors: []\n":                                                                                          `server.auth_token: required`,
-		"notifications:\n  webhooks:\n    - url: https://hooks.slack.com/services/x\n":                            `notifications.webhooks[0]: type is required`,
-		"notifications:\n  webhooks:\n    - type: teams\n      url: https://example.com/x\n":                      `unknown type "teams"`,
-		"notifications:\n  webhooks:\n    - type: slack\n      url: ${SANTE_TEST_UNSET_HOOK}\n":                   `url must be an absolute`,
-		"notifications:\n  webhook:\n    - type: slack\n":                                                         `line 2: unknown field "webhook"`,
-		parent + "        address: nope\n":                                                                        `monitors[0].monitors[0] (b): address must be host:port`,
-		parent + "        address: x:2\n        group: g\n":                                                       `monitors[0].monitors[0]: group is not allowed`,
-		parent + "        address: x:2\n        id: a\n":                                                          `id "a" is already used by monitors[0]`,
-		parent + "        address: x:2\n        monitors:\n          - name: c\n":                                 `sub-monitors cannot have their own`,
+		"monitors:\n  - name: a\n    type: tcp\n    address: x:1\n    intervall: 5s\n":                                            `line 5: unknown field "intervall"`,
+		"monitors:\n  - name: a\n    type: ftp\n":                                                                                 `unknown type "ftp"`,
+		"monitors:\n  - name: a\n    type: tcp\n    address: nope\n":                                                              `address must be host:port`,
+		"monitors:\n  - name: a\n    type: http\n    url: example.com\n":                                                          `absolute http`,
+		"monitors:\n  - name: a\n    type: tcp\n    address: x:1\n  - name: A\n    type: tcp\n    address: x:2\n":                 `id "a" is already used`,
+		"monitors:\n  - name: a\n    type: tcp\n    address: x:1\n    interval: 5s\n    timeout: 10s\n":                           `timeout 10s is longer than interval 5s`,
+		"server:\n  listen: ${PORT:?is needed}\n":                                                                                 `line 2: environment variable PORT is needed`,
+		"defaults:\n  interval: soon\n":                                                                                           `invalid duration "soon"`,
+		"monitors: []\n":                                                                                                          `server.auth_token: required`,
+		"notifications:\n  webhooks:\n    - url: https://hooks.slack.com/services/x\n":                                            `notifications.webhooks[0]: type is required`,
+		"notifications:\n  webhooks:\n    - type: teams\n      url: https://example.com/x\n":                                      `unknown type "teams"`,
+		"notifications:\n  webhooks:\n    - type: slack\n      url: ${SANTE_TEST_UNSET_HOOK}\n":                                   `url must be an absolute`,
+		"notifications:\n  webhook:\n    - type: slack\n":                                                                         `line 2: unknown field "webhook"`,
+		parent + "        address: nope\n":                                                                                        `monitors[0].monitors[0] (b): address must be host:port`,
+		parent + "        address: x:2\n        group: g\n":                                                                       `monitors[0].monitors[0]: group is not allowed`,
+		parent + "        address: x:2\n        id: a\n":                                                                          `id "a" is already used by monitors[0]`,
+		parent + "        address: x:2\n        monitors:\n          - name: c\n":                                                 `sub-monitors cannot have their own`,
+		"monitors:\n  - name: a\n    type: health_endpoint\n":                                                                     `token is required`,
+		"monitors:\n  - name: a\n    type: health_endpoint\n    token: a/b\n":                                                     `token is required and may only contain`,
+		"monitors:\n  - name: a\n    type: health_endpoint\n    token: t\n    timeout: 5s\n":                                      `timeout does not apply`,
+		"monitors:\n  - name: a\n    type: health_endpoint\n    token: t\n    method: PUT\n":                                      `method "PUT" is not GET or POST`,
+		"monitors:\n  - name: a\n    type: health_endpoint\n    token: t\n  - name: b\n    type: health_endpoint\n    token: t\n": `monitors[1] (b): token is already used by monitors[0]`,
 	}
 	for in, want := range tests {
 		_, _, err := Parse([]byte(in))

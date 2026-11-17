@@ -38,10 +38,11 @@ type Server struct {
 	started   time.Time
 	log       *slog.Logger
 
-	pages   map[string]*template.Template
-	assets  map[string]asset
-	csp     string
-	session string
+	pages     map[string]*template.Template
+	assets    map[string]asset
+	csp       string
+	session   string
+	endpoints map[[sha256.Size]byte]endpoint
 	// assetVersion changes whenever a static file does, busting browser caches.
 	assetVersion string
 }
@@ -53,7 +54,7 @@ type asset struct {
 
 func New(cfg *config.Config, st *store.Store, sched *scheduler.Scheduler, version string, log *slog.Logger) (*Server, error) {
 	s := &Server{cfg: cfg, store: st, scheduler: sched, version: version, started: time.Now(), log: log,
-		session: sessionValue(cfg.Server.AuthToken)}
+		session: sessionValue(cfg.Server.AuthToken), endpoints: endpoints(sched.Jobs())}
 	if err := s.loadAssets(); err != nil {
 		return nil, err
 	}
@@ -84,6 +85,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /login", s.handleLogin)
 	mux.HandleFunc("POST /logout", s.handleLogout)
 	mux.HandleFunc("GET /api/status", s.handleAPIStatus)
+	mux.HandleFunc(pushPath+"{token}", s.handlePush)
 	mux.HandleFunc("GET /static/{file}", s.handleAsset)
 	mux.HandleFunc("GET /favicon.svg", s.handleFavicon)
 	return s.headers(http.NewCrossOriginProtection().Handler(mux))

@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -52,6 +53,10 @@ monitors:
   - name: Orders DB
     type: postgres
     dsn: postgres://app:hunter2@127.0.0.1:1/orders
+  - name: Backup
+    type: health_endpoint
+    token: ` + pushToken + `
+    method: post
 `))
 	if err != nil {
 		t.Fatal(err)
@@ -81,7 +86,10 @@ monitors:
 	return ts, sched
 }
 
-const bearer = "Bearer s3cret"
+const (
+	bearer    = "Bearer s3cret"
+	pushToken = "pushS3cret"
+)
 
 func get(t *testing.T, url string, header ...string) (*http.Response, string) {
 	t.Helper()
@@ -131,8 +139,8 @@ func TestPages(t *testing.T) {
 	if !strings.Contains(body, "<title>Acme Status</title>") || !strings.Contains(body, `<span class="brand-name">Acme Status</span>`) {
 		t.Errorf("status page does not use ui.title:\n%.800s", body)
 	}
-	if strings.Count(body, `class="bar"`) != 3*days {
-		t.Errorf("status page has %d bars, want %d", strings.Count(body, `class="bar"`), 3*days)
+	if strings.Count(body, `class="bar"`) != 4*days {
+		t.Errorf("status page has %d bars, want %d", strings.Count(body, `class="bar"`), 4*days)
 	}
 	card := body[strings.Index(body, "Queue"):strings.Index(body, "Orders DB")]
 	if !strings.Contains(card, `<li class="sub" data-level=`) || !strings.Contains(card, `<span class="sub-name">Consumer</span>`) {
@@ -162,7 +170,7 @@ func TestPages(t *testing.T) {
 	if err := json.Unmarshal([]byte(body), &report); err != nil {
 		t.Fatal(err)
 	}
-	if report.Status != "ok" || len(report.Settings.Monitors) != 3 {
+	if report.Status != "ok" || len(report.Settings.Monitors) != 4 {
 		t.Errorf("report = %+v", report)
 	}
 	if strings.Contains(body, "hunter2") || strings.Contains(body, "hookSecret") {
@@ -246,6 +254,54 @@ func TestAuth(t *testing.T) {
 	resp, _ = post(t, ts.URL+"/logout", nil, "Cookie", session)
 	if c := resp.Cookies(); resp.StatusCode != http.StatusSeeOther || len(c) != 1 || c[0].MaxAge >= 0 {
 		t.Errorf("logout = %d, cookies %+v, want the session cleared", resp.StatusCode, c)
+	}
+}
+
+func TestHealthEndpoint(t *testing.T) {
+	ts, sched := newTestServer(t)
+	endpoint := ts.URL + "/api/push/" + pushToken
+
+	for _, path := range []string{"/", "/api/status", "/monitors/backup"} {
+		if _, body := get(t, ts.URL+path); strings.Contains(body, pushToken) {
+			t.Errorf("signed-out %s shows the endpoint token", path)
+		}
+	}
+	for _, path := range []string{"/health", "/health?format=json"} {
+		if _, body := get(t, ts.URL+path, "Authorization", bearer); strings.Contains(body, pushToken) {
+			t.Errorf("signed-in %s shows the endpoint token", path)
+		}
+	}
+	_, body := get(t, ts.URL+"/monitors/backup", "Authorization", bearer)
+	if !strings.Contains(body, "<code>"+endpoint+"</code>") || !strings.Contains(body, "at least every 1m0s") {
+		t.Errorf("monitor page does not show the endpoint to call:\n%s", body)
+	}
+	if strings.Contains(body, "<dt>timeout</dt>") {
+		t.Error("monitor page lists a timeout for a health endpoint")
+	}
+
+	var checker *check.HealthEndpoint
+	for _, job := range sched.Jobs() {
+		if job.Monitor.ID == "backup" {
+			checker = job.Checker.(*check.HealthEndpoint)
+		}
+	}
+	if _, err := checker.Check(t.Context()); !errors.Is(err, check.ErrPending) {
+		t.Fatalf("before any call = %v, want ErrPending", err)
+	}
+	if resp, _ := post(t, ts.URL+"/api/push/nope", nil); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("unknown token = %d, want 404", resp.StatusCode)
+	}
+	if resp, _ := get(t, endpoint); resp.StatusCode != http.StatusMethodNotAllowed || resp.Header.Get("Allow") != "POST" {
+		t.Errorf("GET to a POST endpoint = %d, Allow %q", resp.StatusCode, resp.Header.Get("Allow"))
+	}
+	if _, err := checker.Check(t.Context()); !errors.Is(err, check.ErrPending) {
+		t.Errorf("rejected calls counted: %v", err)
+	}
+	if resp, body := post(t, endpoint, nil); resp.StatusCode != http.StatusOK {
+		t.Errorf("call = %d: %s", resp.StatusCode, body)
+	}
+	if msg, err := checker.Check(t.Context()); err != nil || !strings.HasPrefix(msg, "last call") {
+		t.Errorf("after a call = %q, %v", msg, err)
 	}
 }
 

@@ -114,3 +114,13 @@ monitors:
     type: mysql
     dsn: sante:${MYSQL_PASSWORD:-sante}@tcp(${MYSQL_HOST:-mysql}:3306)/sante
     interval: 2m
+
+  # Health endpoint: the service calls Sante instead. Pending until the first
+  # call, then healthy while calls arrive at least every interval. Signed-in
+  # users find the URL to call on the monitor's page.
+  - name: Nightly backup
+    group: Jobs
+    type: health_endpoint
+    token: ${BACKUP_TOKEN:-sante-demo-backup}  # unique per monitor; generate with `openssl rand -hex 32`
+    method: POST                        # GET (default) or POST
+    interval: 25h                       # longest allowed gap: a nightly job with an hour to spare

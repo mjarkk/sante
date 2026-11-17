@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
@@ -70,6 +71,8 @@ func (s *Scheduler) Run(ctx context.Context) {
 
 func (s *Scheduler) Running() bool { return s.running.Load() }
 
+func (s *Scheduler) Jobs() []Job { return s.jobs }
+
 // LastCheck is when the most recent check result was stored, zero before the first.
 func (s *Scheduler) LastCheck() time.Time {
 	if ms := s.lastCheck.Load(); ms > 0 {
@@ -115,7 +118,8 @@ func (s *Scheduler) loop(ctx context.Context, job Job, wasUp *bool, wg *sync.Wai
 }
 
 // run performs one check including retries. ok is false when ctx was
-// cancelled mid-check, since that failure says nothing about the target.
+// cancelled mid-check, since that failure says nothing about the target, and
+// when the checker has nothing to report yet.
 func (s *Scheduler) run(ctx context.Context, job Job) (r store.Result, ok bool) {
 	m := job.Monitor
 	attempts := 1 + *m.Retries
@@ -124,7 +128,7 @@ func (s *Scheduler) run(ctx context.Context, job Job) (r store.Result, ok bool) 
 		checkCtx, cancel := context.WithTimeout(ctx, m.Timeout.Std())
 		msg, err := job.Checker.Check(checkCtx)
 		cancel()
-		if ctx.Err() != nil {
+		if ctx.Err() != nil || errors.Is(err, check.ErrPending) {
 			return r, false
 		}
 		r = store.Result{MonitorID: m.ID, CheckedAt: started, Up: err == nil, Latency: time.Since(started), Message: msg}

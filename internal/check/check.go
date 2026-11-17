@@ -11,7 +11,8 @@ import (
 
 type Checker interface {
 	// Check returns a short description of the healthy response, or an error
-	// describing why the target is unhealthy. ctx carries the check timeout.
+	// describing why the target is unhealthy, or ErrPending. ctx carries the
+	// check timeout.
 	Check(ctx context.Context) (string, error)
 }
 
@@ -28,6 +29,8 @@ func New(m config.Monitor) (Checker, error) {
 		return newMySQL(m)
 	case config.Postgres:
 		return newPostgres(m)
+	case config.HealthEndpoint:
+		return newHealthEndpoint(m), nil
 	}
 	return nil, fmt.Errorf("unsupported type %q", m.Type)
 }
@@ -78,6 +81,9 @@ func Describe(m config.Monitor) (target string, options [][2]string) {
 	case config.Postgres:
 		target = redactPostgresDSN(m.DSN)
 		opt("query", queryOrPing(m.Query))
+	case config.HealthEndpoint:
+		target = "incoming " + m.Method
+		opt("token", redacted)
 	}
 	return target, options
 }

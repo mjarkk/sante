@@ -178,6 +178,12 @@ func profileFor(m config.Monitor) profile {
 			ok:       "PONG",
 			failures: []string{refused(m.Address), "LOADING Redis is loading the dataset in memory", msgTimeout},
 		}
+	case config.HealthEndpoint:
+		return profile{
+			latency:  [2]time.Duration{5 * time.Microsecond, 40 * time.Microsecond},
+			ok:       fmt.Sprintf("last call %s ago", (m.Interval.Std() / 3).Round(time.Second)),
+			failures: []string{fmt.Sprintf("last call %s ago, expected every %s", 3*m.Interval.Std(), m.Interval)},
+		}
 	case config.MySQL:
 		return profile{
 			latency:  [2]time.Duration{2 * time.Millisecond, 8 * time.Millisecond},
