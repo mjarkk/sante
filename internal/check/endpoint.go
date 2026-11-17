@@ -20,14 +20,25 @@ var ErrPending = errors.New("no result yet")
 type HealthEndpoint struct {
 	interval time.Duration
 	// last is the latest call in Unix nanoseconds, 0 before the first.
-	last atomic.Int64
+	last  atomic.Int64
+	calls chan struct{}
 }
 
 func newHealthEndpoint(m config.Monitor) *HealthEndpoint {
-	return &HealthEndpoint{interval: m.Interval.Std()}
+	return &HealthEndpoint{interval: m.Interval.Std(), calls: make(chan struct{}, 1)}
 }
 
-func (h *HealthEndpoint) RecordCall() { h.last.Store(time.Now().UnixNano()) }
+func (h *HealthEndpoint) RecordCall() {
+	h.last.Store(time.Now().UnixNano())
+	select {
+	case h.calls <- struct{}{}:
+	default:
+	}
+}
+
+// Calls receives after each call. Calls that arrive before it is drained
+// are delivered as one.
+func (h *HealthEndpoint) Calls() <-chan struct{} { return h.calls }
 
 func (h *HealthEndpoint) Check(context.Context) (string, error) {
 	last := h.last.Load()

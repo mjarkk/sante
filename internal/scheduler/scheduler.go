@@ -94,6 +94,11 @@ func (s *Scheduler) loop(ctx context.Context, job Job, wasUp *bool, wg *sync.Wai
 	case <-time.After(startIn):
 	}
 
+	var calls <-chan struct{}
+	if h, ok := job.Checker.(*check.HealthEndpoint); ok {
+		calls = h.Calls()
+	}
+
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
@@ -113,6 +118,10 @@ func (s *Scheduler) loop(ctx context.Context, job Job, wasUp *bool, wg *sync.Wai
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+		case <-calls:
+			// The next check comes a full interval after the call, the moment
+			// the following call is overdue.
+			ticker.Reset(interval)
 		}
 	}
 }

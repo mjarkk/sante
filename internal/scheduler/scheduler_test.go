@@ -118,3 +118,54 @@ func TestPendingIsNotRecorded(t *testing.T) {
 		t.Errorf("pending checks notified: %v", notifier.down)
 	}
 }
+
+func TestHealthEndpointCallIsCheckedAtOnce(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "sante.db"), time.UTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	m := config.Monitor{ID: "phone", Name: "phone", Type: config.HealthEndpoint, Interval: config.Duration(time.Hour), Retries: new(0)}
+	c, err := check.New(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	endpoint := c.(*check.HealthEndpoint)
+	sched := New(st, []Job{{m, c}}, nil, slog.New(slog.DiscardHandler))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		sched.Run(ctx)
+		close(done)
+	}()
+	defer func() {
+		cancel()
+		<-done
+	}()
+
+	results := func() int {
+		rs, err := st.Results(t.Context(), m.ID, time.Now().Add(time.Second), false, 100)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(rs)
+	}
+	waitFor := func(want int, within time.Duration) {
+		t.Helper()
+		deadline := time.Now().Add(within)
+		for results() < want && time.Now().Before(deadline) {
+			time.Sleep(10 * time.Millisecond)
+		}
+		if got := results(); got < want {
+			t.Fatalf("%d results after %s, want %d", got, within, want)
+		}
+	}
+
+	endpoint.RecordCall()
+	waitFor(1, 10*time.Second)
+	before := results()
+	endpoint.RecordCall()
+	waitFor(before+1, 2*time.Second)
+}

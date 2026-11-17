@@ -118,10 +118,10 @@ Only signed-in users can open that page. The health page and `sante validate`
 hide the token. A request with the configured method counts as a call, and
 its body is ignored. Other methods get `405`, unknown tokens `404`.
 
-- After the first call, the monitor is down once the last call is more than
-  `interval` ago. Set `interval` a little longer than how often the service
-  calls, so a call that is slightly late doesn't count as missed. Sante
-  checks every `interval`, so it can take up to one more `interval` to show.
+- Each call marks the monitor up right away. After the first call, the
+  monitor goes down as soon as `interval` passes without another one. Set
+  `interval` a little longer than how often the service calls, so a call
+  that is slightly late doesn't count as missed.
 - `timeout` isn't allowed, because `interval` already sets how late a call
   may be.
 - The token is the only thing that authenticates a call, so make it long and
