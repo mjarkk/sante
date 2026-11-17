@@ -125,10 +125,12 @@ func niceScale(peak float64) (step, top float64) {
 }
 
 func axisMillis(v, top float64) string {
+	unit := " ms"
 	if top >= 2000 {
-		return strconv.FormatFloat(v/1000, 'f', -1, 64) + " s"
+		v, unit = v/1000, " s"
 	}
-	return strconv.FormatFloat(v, 'f', -1, 64) + " ms"
+	// Summed fractional steps drift, e.g. 3×0.025 is 0.07500000000000001.
+	return strconv.FormatFloat(v, 'g', 6, 64) + unit
 }
 
 func num(f float64) string { return strconv.FormatFloat(f, 'f', 1, 64) }
